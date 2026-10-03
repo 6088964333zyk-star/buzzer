@@ -2,10 +2,16 @@
 
 **Owner:** Bill Zhang (yyzhang). The admin restructure half of T4 is owned by Jack Mayerhofer
 and is out of scope here, except where noted under *Coordination*.
-**Status:** Draft, before Goldfish test.
-**Process:** Written after the backend and frontend context docs (`backend/app/**/CLAUDE.md`,
-`frontend/*/src/**/CLAUDE.md`). Committed before any implementation code. To be revised after
-a Goldfish test.
+**Status:** Revised after Goldfish test (fresh session `buzzer-72-5b`, 2026-10-03). The
+pre-Goldfish draft is commit `c8b0d35`. See *§8 Goldfish revision log*.
+**Process:** Written after the T3 context docs.
+- **Backend:** `backend/app/**/CLAUDE.md`, merged in MR !4.
+- **Frontend:** `frontend/*/src/**/CLAUDE.md`, committed 2026-09-30 in Jack's MR !3. Not yet
+  merged at the time of writing, so it is absent from branches cut from `main`.
+
+The frontend claims in this doc come from those files. Read them from
+`origin/docs/t3-frontend-context` until !3 merges. This doc is committed before any
+implementation code. **It must not be merged to `main` before !3.**
 
 ---
 
@@ -83,9 +89,24 @@ checks.
 - **Host access to games is course-based.** A USER may run or manage game G iff
   `G.course_id` is non-NULL and they are HOST of that course. `UserGameAccess` no longer grants
   host access.
-- **No re-assignment.** A game's course is never changed by the host API, and is never
-  changed implicitly (for example by starting it in another course). Copying a game to another
-  course is future work.
+- **Set once.** A game's course is set once and then never changes.
+  - **Host API.** It never accepts `course_id` on update.
+  - **Admin API.** `PUT /api/admin/games/{id}` may set `course_id` **only while it is NULL**.
+    Trying to change a non-NULL `course_id` to a different value → 409 *"A game's course
+    cannot be changed once set."* An omitted or `null` `course_id` in an update means
+    *unchanged*; there is no way to clear it.
+  - **Why.** This prevents a game's past sessions from ending up in a different course than
+    the game.
+  - It is also never changed implicitly, for example by starting the game in another course.
+    Copying a game to another course is future work.
+- **Legacy games are backfilled by the migration.**
+  - Migration 004 sets `course_id` on every game whose existing `GameSession` rows **all**
+    share exactly one `course_id`.
+  - Games that were never played, or were played in more than one course, stay NULL. Until an
+    admin assigns them, only ADMIN can run or manage them. This is a documented, temporary
+    loss of access for non-admin hosts.
+  - The admin "assign course" UI is Jack's (see *Coordination*); until then an admin can use
+    the API directly.
 
 **D2 — A separate `/api/host/*` router, with logic in services.**
 
@@ -124,6 +145,16 @@ checks.
   - Today the delete fails inside `get_db`'s commit, because `session_scores.question_id` is a
     NOT NULL FK with no cascade. The client sees a 500 or a misleading 204.
   - Archiving is future work.
+- **Editing an answered question.**
+  - **Changing `type` → 409.** The stored `SessionScore.answer_data` would no longer match the
+    new type, and the CSV/HTML report could render wrongly or crash.
+  - **Other edits are allowed:** prompt, options text, points, time limit and grading type. Fixing
+    a typo in last week's question must stay possible.
+  - **Known limit:** exports read the game's *current* questions
+    (`services/CLAUDE.md`), so these edits **do change** how past sessions' CSV and HTML
+    reports render. Scores already stored (`points_awarded`) are not recalculated.
+  - This narrows D5's rationale to "never make past results unreadable or lose them",
+    rather than "never change how they render".
 - **Games.** No host endpoint deletes games. Admin `delete_game` cascades sessions and scores;
   that power stays admin-only. T4 doesn't ask hosts to delete games.
 
@@ -154,7 +185,15 @@ checks.
 - **Why.** `start_game` snapshots the ordered question ids into Redis. Deleting or editing a
   question mid-game can leave the gateway pointing at a missing or changed question.
 - **Rule.** Create, update, delete and reorder → 409 *"This game has a session in progress"*
-  while any `GameSession` for the game has status IN_PROGRESS.
+  while the game has a **live** session.
+- **"Live"** means `GameSession.status == "IN_PROGRESS"` in MySQL **and** the Redis key
+  `room:{room_code}` still exists.
+- **Why Redis too.** Auto-abandon relies on an in-process task (`_abandon_tasks`) that is lost
+  on a backend restart. That can leave a session IN_PROGRESS in MySQL forever. The room key
+  has a 90-minute TTL refreshed on activity, so a stuck session stops counting as live within
+  90 minutes, and edits unlock with no manual step or new endpoint.
+- **Trade-off.** If Redis is flushed during a real game, edits unlock early. That game is
+  already broken in that case, since the gateway's state lives in Redis.
 - **LOBBY is deliberately allowed.** The question list is read only when the game starts.
   Lobbies that are never started are not cleaned up today, so blocking on LOBBY could freeze a
   game indefinitely.
@@ -178,6 +217,11 @@ checks.
 | D6 | Shared npm workspace package | Build-system change; too risky this close to the deadline. |
 | D7 | Defer validation to T7 | The new host editor would ship with the known hole. |
 | D8 | Also block edits while a session is in LOBBY | Abandoned lobbies are never cleaned up, so a game could stay locked forever. Edits made before start are read correctly anyway. |
+| D8 | Judge "live" by MySQL status only | A backend restart loses the abandon task and can lock a game forever (Goldfish #4). |
+| D8 | Add an admin "abandon session" endpoint | Explicit, but adds an endpoint, UI and tests. The Redis check unlocks automatically. |
+| D1 | Admin can re-assign a game's course freely | Past sessions could end up in a different course than their game. |
+| D1 | No backfill; admins assign every legacy game by hand | Needless loss of host access for games already used in exactly one course. |
+| D5 | Block all edits to answered questions | A host couldn't even fix a typo in a question used last week. |
 
 ---
 
@@ -190,12 +234,25 @@ Implement in this order. Each step is a separately testable commit (or a small g
   `course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id"), nullable=True, index=True)`,
   plus `course` relationship. Add `Course.games` back-population in `models/course.py`.
 - `backend/app/migrations/versions/004_game_course_id.py`: `revision = "004"`,
-  `down_revision = "003"`. Add the nullable column, FK and index. The downgrade drops them.
-  Existing rows stay NULL.
+  `down_revision = "003"`.
+  - Add the nullable column, FK and index.
+  - **Backfill** (D1), in SQL: for each `game_id` in `game_sessions` grouped by `game_id`
+    `HAVING COUNT(DISTINCT course_id) = 1`, set `games.course_id` to that course. All other
+    games stay NULL.
+  - The downgrade drops the index, FK and column.
 - `backend/app/schemas/admin.py`:
-  - `GameCreate` and `GameUpdate` get an optional `course_id: int | None`.
+  - `GameCreate` and `GameUpdate` get an optional `course_id: int | None = None`.
   - `GameResponse` gets `course_id: int | None`.
-  - The admin create route validates the course exists, if one is given.
+  - The admin create route validates that the course exists (404), if one is given.
+  - The admin update route applies the D1 set-once rule:
+    - stored value NULL and a value is given → set it (404 if the course is missing);
+    - stored value non-NULL, given value equal → no-op;
+    - stored value non-NULL, given value different → 409;
+    - value omitted or `null` → unchanged.
+- `backend/app/common/exceptions.py`: add
+  `class UnprocessableError(BuzzerError)` with status 422 and code `VALIDATION_ERROR`. It's
+  used by Steps 3 and 4. The existing handler already turns any `BuzzerError` into
+  `{"error": code, "message": ...}`.
 
 ### Step 2 — Access helpers and room rule (`backend/app/services/game_service.py`)
 - `assert_host_can_manage_game(db, user, game_id) -> Game`:
@@ -222,12 +279,21 @@ All functions take `(db, game, …)` with the game already authorized by the cal
 - `update(db, game, question_id, body: QuestionUpdate) -> Question`:
   1. Load the question within the game, or 404.
   2. D8 check.
-  3. Merge-then-validate (D7): build a dict of the stored fields, overlay `body`'s non-None
-     fields, and call `QuestionCreate(**merged)`. Convert a validation failure into a 422
-     carrying the validator message; `common/exceptions.py` already formats
-     `RequestValidationError`. Raising a `BuzzerError` with status 422 and code
-     `VALIDATION_ERROR` is acceptable.
-  4. Apply the fields, re-bleaching the prompt.
+  3. **Type change on an answered question (D5).** If `body.type` is given, differs from the
+     stored type, and any `SessionScore` references the question → `ConflictError` (409).
+  4. **Merge-then-validate (D7).**
+     - Build `merged` from the stored question with **only** these keys: `type`,
+       `grading_type`, `prompt`, `config`, `answer_data`, `time_limit_seconds`,
+       `points_value`.
+     - Exclude `id`, `game_id`, `order_index` and `created_at`; `QuestionCreate` is
+       `extra="forbid"`.
+     - Overlay every field of `body` that is not `None`. None of these columns is nullable in
+       the DB, so "None = unchanged" loses nothing.
+     - Call `QuestionCreate(**merged)` inside `try`. Catch `pydantic.ValidationError` and raise
+       `UnprocessableError` with the first error's message. **Do not let it propagate**: it is
+       not a FastAPI `RequestValidationError`, and would surface as a generic 500.
+  5. Apply the merged fields, re-bleaching the prompt. If `body.order_index` is given, set it
+     directly, as admin does today. It isn't part of validation.
 - `delete(db, game, question_id) -> None`:
   1. Load the question, or 404.
   2. D8 check.
@@ -236,15 +302,22 @@ All functions take `(db, game, …)` with the game already authorized by the cal
   4. Otherwise delete.
 - `reorder(db, game, order: list[int]) -> None`: move the logic from admin
   `reorder_questions` (the ids must match exactly, else 409), plus the D8 check.
-- `_assert_no_live_session(db, game_id)`: 409 if any `GameSession` for the game has status
-  IN_PROGRESS. LOBBY sessions don't block edits (see D8).
+- `_assert_no_live_session(db, redis, game_id)`:
+  - Select the `room_code` of every `GameSession` for the game with status IN_PROGRESS.
+  - If any of them still has the Redis key `room:{room_code}` (`state_service.get_room_state`
+    is not None) → 409.
+  - LOBBY sessions never block (see D8).
+  - The service functions therefore take `redis` too. Routers get it via `Depends(get_redis)`,
+    as `routers/game.py` already does.
 - `backend/app/routers/admin.py`: the question create/update/delete/reorder handlers keep their
   URLs, `require_admin` and response models, and delegate to `question_service`.
 
 ### Step 4 — Roster limit (`backend/app/services/roster_service.py`)
-- `process_roster_rows` and `process_roster_csv` check the row count before writing anything.
-  More than `MAX_ROWS` → a 422-style error result (or raise) with **no** writes or
-  deactivations.
+- `process_roster_rows` and `process_roster_csv` count **data rows** before writing anything.
+  The header and Canvas's "Points Possible" metadata row don't count.
+- More than `MAX_ROWS` (1000) → raise `UnprocessableError` ("Roster exceeds 1000 rows"), with
+  **no** writes and no deactivations.
+- This also changes the admin upload endpoints. Listed under *Coordination*.
 
 ### Step 5 — Host router (`backend/app/routers/host.py`, new; mounted in `main.py` with `prefix="/api"`, router prefix `/host`)
 
@@ -254,6 +327,7 @@ Every route depends on `require_user`, so GUEST gets 403, and then authorizes as
 |---|---|---|---|
 | GET | `/host/courses/{cid}/games` | `assert_host_can_use_course(cid)` | Games where `course_id == cid` |
 | POST | `/host/courses/{cid}/games` | same | Create a game with `course_id = cid` (body: title, description, max_players) → 201 |
+| GET | `/host/games/{gid}` | `assert_host_can_manage_game` | `GameResponse` (title for the editor page header) |
 | PUT | `/host/games/{gid}` | `assert_host_can_manage_game` | Update title/description/max_players. **`course_id` is not accepted** (`extra="forbid"`) |
 | GET | `/host/games/{gid}/questions` | same | List ordered by `order_index`; `QuestionResponse` (hosts may see answers) |
 | POST | `/host/games/{gid}/questions` | same | `question_service.create` → 201 |
@@ -263,7 +337,7 @@ Every route depends on `require_user`, so GUEST gets 403, and then authorizes as
 | GET | `/host/courses/{cid}/roster` | `assert_host_can_use_course(cid)` | Roster entries for the course |
 | POST | `/host/courses/{cid}/roster/import` | same | Body `RosterImportPayload` → `process_roster_rows` → `RosterUploadResult` |
 | PATCH | `/host/courses/{cid}/roster/{rid}` | same | Body `{is_active: bool}` only, for the entry within the course (404 otherwise) |
-| GET | `/host/courses/{cid}/sessions` | same | Sessions of the course, newest first: id, room_code, status, game title, created/completed, player count |
+| GET | `/host/courses/{cid}/sessions` | same | New schema `HostSessionItem` (in `schemas/game.py`): `session_id`, `room_code`, `status`, `game_id`, `game_title`, `created_at`, `completed_at`, `player_count`. The player count is distinct `SessionScore.user_id`, the same definition as admin `list_sessions` and the CSV rows. Players who never answered aren't counted. Newest first. |
 | GET | `/host/sessions/{sid}/export` | `assert_host_can_view_session` | `export_service.build_session_csv` as a CSV attachment |
 | GET | `/host/sessions/{sid}/report` | same | `report_service.build_session_report` as an HTML attachment |
 
@@ -277,18 +351,29 @@ Also:
 ### Step 6 — Host frontend (`frontend/host/src/`)
 - `lib/api.ts`:
   - `put` and `patch` (JSON).
-  - `postForm(path, FormData)`, which doesn't set Content-Type.
   - `download(path, fallbackName)`: fetch with the Bearer header → `blob()` → trigger a save
-    with the filename from `Content-Disposition`.
+    with the filename from `Content-Disposition`. No CORS change is needed: the host app
+    reaches `/api` same-origin, through the Vite dev proxy (`vite.config.ts`) or nginx, so the
+    header is readable.
+  - No multipart helper: roster upload sends JSON rows (`RosterImportPayload`), parsed in the
+    browser.
 - New pages under `pages/manage/`, routed in `App.tsx` inside `RequireAuth`:
   - `/manage/:courseId` — course hub with tabs or links: Games, Roster, Sessions.
   - `/manage/:courseId/games` — list and create games.
   - `/manage/:courseId/games/:gameId` — question editor. Copied from admin
     `QuestionEditorPage.tsx`, endpoints switched to `/host/...`, with the D6 bug fixes. A 409
     is shown as an inline message.
-  - `/manage/:courseId/roster` — table with an active toggle; CSV upload. Parse in the
-    browser using the copied admin parser; diff against the current roster; preview
-    "N new · M updated · K deactivated"; confirm → `POST …/roster/import`.
+  - `/manage/:courseId/roster` — table with an active toggle, plus CSV upload.
+    1. Parse the CSV in the browser using the copied admin parser.
+    2. Normalize each netid exactly as the server does: `trim().toLowerCase()`.
+    3. Compute the preview so it equals the server's `RosterUploadResult`:
+       - **new** = netids not on the roster at all;
+       - **updated** = netids already on the roster, active *or inactive* (the server
+         reactivates them and counts them as updated);
+       - **deactivated** = currently *active* netids absent from the file.
+    4. Show "N new · M updated · K will be deactivated". More than 1000 data rows → block in
+       the UI too.
+    5. Confirm → `POST …/roster/import`. Then show the server's actual counts.
   - `/manage/:courseId/sessions` — table, plus "Download CSV" and "Download summary" buttons
     (`api.download`).
 - `pages/HomePage.tsx`:
@@ -299,7 +384,9 @@ Also:
 
 ### Step 7 — Integration tests (`tests/integration/test_host_api.py`, new)
 
-Use the existing conftest helpers and add fixtures for:
+Use the existing conftest helpers. Use `tests/integration/engine/orchestrator.run_game` to play
+a real session over Socket.IO wherever a test needs answered questions or a session
+IN_PROGRESS. It already exists and is used by `test_game_flow.py`. Add fixtures for:
 - a second course;
 - a non-admin user who is HOST of course A only (via
   `POST /api/admin/users/{id}/course-access`);
@@ -323,15 +410,26 @@ Tests assert behavior, not just status codes:
    - Delete an unanswered question → 204, then GET shows it gone.
    - Play a session where the question is answered, then delete it → 409, and the
      `SessionScore` rows are still present (CSV export still shows them).
+   - On that answered question, a PUT changing `type` → 409. A PUT changing only `prompt` →
+     200.
 5. **D8.**
    - With a session IN_PROGRESS (started via the socket flow), question
      create/update/delete/reorder → 409.
    - With a session only in LOBBY, the same edits succeed.
-6. **Roster.**
+   - The Redis-key half of D8 can't be driven from integration tests, because the Redis port
+     isn't exposed to the host. Add a **unit test** in `tests/unit/` for
+     `_assert_no_live_session`, with a fake Redis and a session row: IN_PROGRESS with a room key
+     → 409; IN_PROGRESS with no room key → passes.
+6. **D1 admin set-once.**
+   - Admin PUT `course_id` on a NULL-course game → 200.
+   - Admin PUT with a different `course_id` → 409.
+   - PUT with the field omitted → unchanged.
+7. **Roster.**
    - Upload rows {a,b} → imported 2.
    - Upload {b,c} → imported 1, updated 1, deactivated 1, and `a` is inactive.
-   - 1001 rows → rejected, and the roster is unchanged.
-7. **D3.**
+   - Upload {a} → updated 1 (reactivated), deactivated 2.
+   - 1001 rows → 422, and the roster is unchanged.
+8. **D3.**
    - A second HOST of course A (not the session creator) can download the CSV and HTML.
    - The CSV totals equal the sum of the session's scores.
    - That host's `DELETE /api/game/sessions/{id}` → 403.
@@ -347,6 +445,11 @@ Existing tests are not modified.
   UI is moot for hosts; Jack decides whether to hide it.
 - **Question routes.** Admin question routes are refactored internally to `question_service`.
   The API is unchanged, but the D5, D7 and D8 409/422 responses now also appear in admin.
+- **Admin game update.** `PUT /api/admin/games/{id}` accepts `course_id` under the D1
+  set-once rule. Migration 004 backfills games played in exactly one course. The rest need an
+  admin "assign course" action in GamesPage.
+- **Roster uploads over 1000 rows** are now rejected with 422 in the admin roster endpoints
+  too. Admin RosterPage should surface that message.
 
 ## 6. Out of scope / future work
 - Copying a game to another course.
@@ -370,3 +473,26 @@ Existing tests are not modified.
   3. Run a round with `scripts/simulate_players.py --keep`.
   4. Download the CSV and the summary from the host Sessions page.
   5. Confirm that a second course's games, roster and sessions are not visible.
+
+## 8. Goldfish revision log
+
+Goldfish test run on 2026-10-03 by a fresh Claude Code session (`buzzer-72-5b`). It was given
+only this doc (pre-Goldfish commit `c8b0d35`) and the backend `CLAUDE.md` files. Its verdict:
+*not ready*. Its findings and how each was resolved:
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | Frontend context docs absent (R4 ordering risk) | They exist in Jack's MR !3 (committed 2026-09-30); the header now says where to read them, and that this doc must not reach `main` before !3. |
+| 2 | D5's rationale contradicts allowing edits; a type change can break reports | Changing `type` on an answered question → 409. Other edits are allowed, with the report-rendering effect documented (D5). |
+| 3 | Legacy games become inaccessible; admin course-edit semantics undefined | Migration backfill for games played in exactly one course. Set-once `course_id`, and omitted/`null` = unchanged (D1, Step 1). |
+| 4 | A restart can leave a session IN_PROGRESS forever, locking edits | "Live" = MySQL IN_PROGRESS **and** the Redis room key exists; it unlocks within 90 minutes (D8). Unit test added. |
+| 5 | 422 mechanism unspecified; pydantic `ValidationError` would become a 500 | New `UnprocessableError` (422). The service catches `pydantic.ValidationError` explicitly (Steps 1, 3). |
+| 6 | Merge-then-validate key set and null semantics unclear | Exact key list and exclusions specified; None = unchanged is safe because the columns are NOT NULL (Step 3). |
+| 7 | Row-limit change affects admin; header counting unclear | Data rows only; admin impact added to Coordination (Step 4). |
+| 8 | Preview "updated" undefined; normalization unspecified | Defined to mirror `process_roster_rows` exactly, including reactivation and `trim().toLowerCase()` (Step 6). |
+| 9 | `postForm` had no caller | Removed; the roster sends JSON rows. |
+| 10 | Session player count and schema unnamed | `HostSessionItem` defined; count = distinct `SessionScore.user_id`. |
+| 11 | `Content-Disposition` may need CORS expose | Verified same-origin via the Vite proxy and nginx; no CORS change. |
+| 12 | Do existing tests rely on `UserGameAccess`? | Verified in source: no test or script grants game access; tests start rooms as ADMIN. |
+| 13 | Do tests have a socket helper? | Yes: `tests/integration/engine/orchestrator.run_game`; Step 7 now names it. |
+| — | No single-game GET; status line | Added `GET /host/games/{gid}`; status updated. |
