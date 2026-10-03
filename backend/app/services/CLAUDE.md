@@ -12,10 +12,13 @@ exports/reports. Routers stay thin and call into here.
   get-or-create; guest-user creation; local username/password authentication.
 - `bootstrap.py` — on startup, waits for the schema to exist, then creates the first ADMIN
   from `ADMIN_USERNAME`/`ADMIN_PASSWORD` if none exists.
-- `game_service.py` — the game core. `assert_host_can_use_course` / `assert_host_can_use_game`
-  (ADMIN passes; otherwise needs a `UserCourseAccess` HOST row / a `UserGameAccess` row);
-  `create_room` (runs both checks, enforces `MAX_ROOMS`, writes the `GameSession` row and the
-  Redis room key); `start_game` / `complete_game` / `abandon_game` status transitions;
+- `game_service.py` — the game core. Access helpers (ADMIN always passes):
+  `assert_host_can_use_course` (needs a `UserCourseAccess` HOST row),
+  `assert_host_can_manage_game` / `assert_host_can_use_game` (HOST of the game's course;
+  course-less legacy games are admin-only), `assert_host_can_view_session` (HOST of the
+  session's course). `create_room` runs the checks, refuses a course-owned game outside its
+  course (admin included), enforces `MAX_ROOMS`, and writes the `GameSession` row and the
+  Redis room key; `start_game` / `complete_game` / `abandon_game` status transitions;
   `authorise_player` (who may join a room); `calculate_score` (per-type scoring) and
   `record_answer` (writes `SessionScore`, updates Redis score/answered/distribution);
   leaderboard and per-question summaries for host and player screens.
@@ -26,8 +29,13 @@ exports/reports. Routers stay thin and call into here.
   *not* the phase), `…:answered:{qid}`, `…:dist:{qid}` (answer distribution);
   `delete_room_state` cleanup. `restore_from_mysql` exists but is **dead code**: nothing
   calls it, and it only returns a dict without writing to Redis.
+- `question_service.py` — question create/update/delete/reorder shared by `routers/admin.py`
+  and `routers/host.py`. Update merges onto the stored row and re-validates with
+  `QuestionCreate` (422). Deleting, or changing the `type` of, an answered question → 409.
+  All edits → 409 while the game has a session IN_PROGRESS whose Redis room key still exists.
 - `roster_service.py` — parses a Canvas gradebook CSV (`Student`, `SIS Login ID` columns) or
-  JSON rows into `CourseRoster` upserts.
+  JSON rows into `CourseRoster` upserts. More than `MAX_ROWS` (1000) data rows → 422 before
+  any write.
 - `export_service.py` — `build_session_csv` (Player, Q1…Qn, Total — the host/admin score
   download) and `build_canvas_csv` (Canvas gradebook import format, admin only).
 - `report_service.py` — `build_session_report`: standalone HTML report with per-question bar
@@ -55,10 +63,9 @@ game lifecycle through `game_service` and `state_service`.
   report copies already lack a multi_select branch.
 - `calculate_score` assumes a well-formed payload: a non-integer `selectedIndex` or a
   non-string `text` raises, and the gateway doesn't catch it — the player gets no reply.
-- **Roster upload is a full replace.** Any active netid missing from the uploaded CSV is
-  deactivated, so uploading "just the new students" deactivates the whole class. Rows past
-  `MAX_ROWS` (1000) are skipped *and* then deactivated. T4's host roster upload must
-  choose this behavior deliberately.
+- **Roster upload is a full replace (kept deliberately in T4).** Any active netid missing from
+  the upload is deactivated, so uploading "just the new students" deactivates the whole
+  class. The host UI shows a preview before confirming. Oversize uploads are rejected whole.
 - **Redis game-state keys never expire (confirmed by reading; not yet observed live).**
   Only `room:{code}` (90 min) and the gateway's `ws_rate:{ip}` have TTLs; every
   `session:{id}:*` key is written without one. `complete_game` doesn't call
@@ -69,7 +76,7 @@ game lifecycle through `game_service` and `state_service`.
   pile up with every completed game and every abandoned lobby.
 - **Exports read the game's current questions,** not a snapshot from when the session was
   played. Editing or reordering questions afterwards changes old sessions' CSV and HTML
-  reports. (Deleting an *answered* question fails outright — see `models/CLAUDE.md`.)
+  reports. Answered questions can't be deleted or change type (`question_service`).
 - `build_session_csv` only lists players with at least one `SessionScore`; a player who joined
   but never answered is missing. Unanswered cells are an int `0`; answered-but-wrong cells
   are the stored float `0.0`.

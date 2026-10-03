@@ -12,12 +12,17 @@ FastAPI REST endpoints, all mounted under `/api` in `main.py`. Real-time game tr
   cookie; dev-only `netid` login returns a temp token), `oauth2-callback` (meant to sit
   behind the production Traefik OAuth proxy), `exchange-temp` (temp → access token), `guest`
   (creates a GUEST user for a live room code), `refresh`, `logout`. Login is rate-limited.
-- `game.py` — `/api/game/*`, the **host-facing** API (any USER or ADMIN):
+- `game.py` — `/api/game/*`, the live-game API for hosts (any USER or ADMIN):
   `my-courses` (ADMIN: all; USER: courses where they are HOST), `my-games` (ADMIN: all; USER:
-  via `UserGameAccess`), `my-active-sessions`, `DELETE sessions/{id}`, `POST rooms` (delegates
+  games of courses they HOST), `my-active-sessions`, `DELETE sessions/{id}`, `POST rooms` (delegates
   access checks to `game_service.create_room`), public `rooms/{code}/ping`, `rooms/{code}`
-  (reconnect metadata), post-game guest listing/merge, and **`sessions/{id}/export` (CSV of
-  scores — already host-accessible)**.
+  (reconnect metadata), post-game guest listing/merge, and `sessions/{id}/export` (CSV; any
+  HOST of the session's course).
+- `host.py` — `/api/host/*` (T4), course-scoped management for hosts. Every route is
+  `require_user` plus a course check via the `game_service` access helpers: games of a course
+  (list/create/get/update metadata — never the course), questions (via
+  `services/question_service`), roster (list, full-replace JSON import, active toggle),
+  sessions of a course, and per-session CSV and HTML report downloads.
 - `admin.py` — `/api/admin/*`, **every route is `require_admin`**: course list/create/get/
   update (**no course delete**); roster CSV upload, JSON row import, per-entry patch (no
   roster-entry delete — deactivate instead); game CRUD; question CRUD + reorder; game JSON
@@ -32,17 +37,14 @@ automatically when the request finishes and rolls back on error, so most handler
 `commit()` themselves.
 
 ## Gotchas
-- **Everything T4 asks the host to do already exists — but only in `admin.py`, behind
-  `require_admin`:** roster upload/patch, game and question CRUD/reorder, HTML session report.
-  T4 means exposing host-safe versions with a per-course HOST check, not new business logic.
-  The one exception: host CSV export already exists at `game.py` `sessions/{id}/export`.
-- **Host checks in `game.py` are "you hosted this session"** (`session.host_user_id ==
-  user.id`), not "you are HOST of this course". A second HOST of the same course cannot
-  export or delete a session the first one ran. T4's design must pick one rule on purpose.
-- Course-level HOST checks today: `my-courses`, `game_service.create_room` (via the reusable
-  `assert_host_can_use_course` / `assert_host_can_use_game`), and `authorise_player` (a
-  course HOST may also join as a player). New host routes should call those helpers rather
-  than re-implementing the query.
+- **Two session rules, on purpose (T4 D3):** viewing/downloading results is allowed for any
+  HOST of the session's course; *deleting* a session (`game.py`) stays creator-or-ADMIN.
+- Admin and host question routes share `services/question_service`; behavior changes there
+  (409/422 rules) apply to both.
+- Course-level HOST checks live in the `game_service.assert_host_can_*` helpers, called by
+  every `host.py` route, `create_room` and the CSV export; `my-courses`/`my-games` filter by
+  the same HOST rows, and `authorise_player` lets a course HOST join as a player. New host
+  routes must call a helper rather than re-implementing the query.
 - **Host `merge-guest` is too broad:** it moves *all* of the guest's scores from every session
   and deletes the guest, without checking the guest played in this session — so the host of
   any session can merge/delete any guest. The admin version differs too: it promotes the guest
@@ -52,9 +54,6 @@ automatically when the request finishes and rolls back on error, so most handler
   `localhost:8000`), a forged header logs in as any netid.
 - **`/api/health` counts are wrong:** it reads `room:{code}:players`, but the real key is
   `session:{id}:players`, so players are always 0; the room count includes COMPLETED rooms.
-- `update_question` writes fields straight through with no structural validation, and
-  `delete_question` does not remove `SessionScore` rows first — see `schemas/CLAUDE.md` and
-  `models/CLAUDE.md`.
 - `merge-guest` (host version) also takes an untyped `body: dict` and reports missing fields
   as 409 Conflict rather than 422.
 - **Prompts are sanitized with `bleach`** on create, update and import, allowing only
