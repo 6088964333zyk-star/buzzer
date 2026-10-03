@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..database import Base
 
 if TYPE_CHECKING:
+    from .course import Course
     from .session import GameSession, SessionScore
     from .user import User, UserGameAccess
 
@@ -23,8 +24,14 @@ class Game(Base):
         Text, nullable=False, default="", server_default=sa.text("''")
     )
     max_players: Mapped[int] = mapped_column(Integer, default=150, nullable=False)
+    # Owning course. NULL only for legacy games created before migration 004;
+    # set once and never changed (see docs/design-t4-host.md D1).
+    course_id: Mapped[int | None] = mapped_column(
+        ForeignKey("courses.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    course: Mapped[Course | None] = relationship("Course", back_populates="games")
     questions: Mapped[list[Question]] = relationship(
         "Question",
         back_populates="game",

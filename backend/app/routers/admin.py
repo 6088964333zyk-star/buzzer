@@ -219,8 +219,13 @@ async def create_game(
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Game:
+    if body.course_id is not None and not await db.get(Course, body.course_id):
+        raise NotFoundError(f"Course {body.course_id} not found")
     game = Game(
-        title=body.title, description=body.description, max_players=body.max_players
+        title=body.title,
+        description=body.description,
+        max_players=body.max_players,
+        course_id=body.course_id,
     )
     db.add(game)
     await db.flush()
@@ -258,6 +263,14 @@ async def update_game(
         game.description = body.description
     if body.max_players is not None:
         game.max_players = body.max_players
+    # A game's course is set once (design D1): it may be assigned while NULL,
+    # but never moved, so past sessions can't end up in another course.
+    if body.course_id is not None and body.course_id != game.course_id:
+        if game.course_id is not None:
+            raise ConflictError("A game's course cannot be changed once set")
+        if not await db.get(Course, body.course_id):
+            raise NotFoundError(f"Course {body.course_id} not found")
+        game.course_id = body.course_id
     return game
 
 
