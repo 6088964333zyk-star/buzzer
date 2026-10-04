@@ -24,7 +24,8 @@ FastAPI REST endpoints, all mounted under `/api` in `main.py`. Real-time game tr
   `services/question_service`), roster (list, full-replace JSON import, active toggle),
   sessions of a course, and per-session CSV and HTML report downloads.
 - `admin.py` — `/api/admin/*`, **every route is `require_admin`**: course list/create/get/
-  update (**no course delete**); roster CSV upload, JSON row import, per-entry patch (no
+  update (**no course delete**), and `courses/{id}/access` (who has HOST/PLAYER on a course,
+  hosts first); roster CSV upload, JSON row import, per-entry patch (no
   roster-entry delete — deactivate instead); game CRUD; question CRUD + reorder; game JSON
   export/import; local user CRUD; grant/revoke course access (HOST/PLAYER) and game access;
   guest merge; session list, Canvas/raw CSV export, and HTML `report`.

@@ -17,7 +17,8 @@ REST routers and the three frontends. Grouped by router.
   `HostSessionItem`.
 - `admin.py` — admin CRUD shapes: courses, roster (upload result, row patch, JSON import),
   games, questions (`QuestionCreate`/`QuestionUpdate`/`QuestionResponse`/`QuestionReorder`),
-  local users, course/game access grants, and admin session listings.
+  local users, course/game access grants, `CourseAccessEntry` (per-course access list), and
+  admin session listings.
 
 ## How it fits in
 Routers declare these as request bodies and `response_model`s; FastAPI returns 422 on
