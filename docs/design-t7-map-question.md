@@ -61,7 +61,9 @@ Constraints from the codebase:
 **D1 — Built-in world map now; T8 can swap the image later.**
 - The image is equirectangular, 2:1, rendered once from Natural Earth 110m land data, which
   is public domain.
-- It is committed as `world-map.png` in each app's `public/` folder.
+- It is committed as `world-map.svg` in each app's `public/` folder. (Changed from PNG during
+  implementation: an SVG is smaller, needs no imaging library to render, and canvas
+  `drawImage` accepts it.)
 - Coordinates are image fractions, so a future uploaded map (a campus, a floor plan) needs no
   scoring change.
 
@@ -176,7 +178,7 @@ Constraints from the codebase:
 - **`_answer_reveal`, `_extract_answer_key`** (return the grid key) and the type badge
   ("Map Pin").
 - **Per-question section: a text summary only** (Goldfish D). The backend can't see the
-  frontend's PNG, and a second copy of the image isn't worth it. The summary reads: "Target
+  frontend's map image, and a second copy of the image isn't worth it. The summary reads: "Target
   (51.2%, 28.1%) · N guesses · M within full credit · median distance P% of map width".
 
 ### Step 5 — Map asset
@@ -184,10 +186,10 @@ Constraints from the codebase:
   1. Download Natural Earth `ne_110m_land.geojson`, which is public domain.
   2. Project equirectangular, with `x = (lon + 180) / 360` and `y = (90 − lat) / 180`.
   3. Draw land on a light-blue ocean at 1200×600.
-  4. Save `world-map.png`.
+  4. Save `world-map.svg`. `--geojson PATH` reads a local copy when downloading fails.
 - The header comment names the source and states the license (public domain).
-- Commit the PNG to `frontend/{player,host,admin}/public/world-map.png`. Apps reference it as
-  `${import.meta.env.BASE_URL}world-map.png`.
+- Commit the SVG to `frontend/{player,host,admin}/public/world-map.svg`. Apps reference it as
+  `${import.meta.env.BASE_URL}world-map.svg`.
 
 ### Step 6 — Player app (`frontend/player/src`)
 - `types/game.ts`: add `map_pin` to the type union and the `point` answer shape.
