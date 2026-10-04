@@ -11,6 +11,8 @@ from pydantic import (
     model_validator,
 )
 
+from ..services import map_pin
+
 
 # ---------------------------------------------------------------------------
 # Courses
@@ -121,7 +123,8 @@ class GameResponse(BaseModel):
 class QuestionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: str = Field(
-        ..., pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select)$"
+        ...,
+        pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select|map_pin)$",
     )
     grading_type: str = Field(..., pattern="^(ACCURACY|COMPLETENESS)$")
     prompt: str = Field(..., min_length=1, max_length=2000)
@@ -187,13 +190,35 @@ class QuestionCreate(BaseModel):
                     )
                 if any(not isinstance(p, (int, float)) for p in pts):
                     raise ValueError("answer_points values must be numbers")
+        if self.type == "map_pin":
+            # Target is required for both grading types so every reveal can
+            # draw it (docs/design-t7-map-question.md, Goldfish B).
+            aspect = self.config.get("aspectRatio")
+            if (
+                isinstance(aspect, bool)
+                or not isinstance(aspect, (int, float))
+                or aspect <= 0
+            ):
+                raise ValueError("map_pin config must have a positive 'aspectRatio'")
+            if not map_pin.is_unit_point(self.answer_data.get("target")):
+                raise ValueError(
+                    "map_pin answer_data must have 'target' {x, y} with numbers in [0, 1]"
+                )
+            if not map_pin.is_valid_radii(
+                self.answer_data.get("fullRadius"), self.answer_data.get("zeroRadius")
+            ):
+                raise ValueError(
+                    "map_pin answer_data needs numeric 'fullRadius' and 'zeroRadius' "
+                    "with 0 <= fullRadius < zeroRadius <= 1"
+                )
         return self
 
 
 class QuestionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: str | None = Field(
-        None, pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select)$"
+        None,
+        pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select|map_pin)$",
     )
     grading_type: str | None = Field(None, pattern="^(ACCURACY|COMPLETENESS)$")
     prompt: str | None = Field(None, min_length=1, max_length=2000)
