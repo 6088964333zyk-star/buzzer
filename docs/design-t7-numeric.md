@@ -142,11 +142,11 @@ This is the same pattern as map_pin's point check, and it goes **right after it*
   So two buttons sit beside the field, usable on every platform:
   - **"±"** toggles a leading `-` on the current text (adds it if absent, removes it if present);
   - **"×10ⁿ"** appends `e` if the text has no `e`/`E` yet (otherwise it does nothing). The player
-    then types the exponent digits; for a negative exponent they tap "±"…
-  - …but "±" only flips the *leading* sign. To keep this simple, a negative exponent is typed by
-    switching to the full keyboard (desktop, Android). On iOS negative exponents aren't
-    reachable, which is acceptable for classroom estimates (tiny quantities can use plain
-    decimals like `0.0004`).
+    then types the exponent digits.
+  - "±" only flips the *leading* sign, never the exponent's. A negative exponent (`1e-4`) can be
+    typed only where the keyboard has `-` (desktop, Android). On iOS it isn't reachable; that's
+    an accepted limit, since tiny classroom quantities can be typed as plain decimals
+    (`0.0004`).
 - **Accepted syntax** (after trimming):
   - the full regex is `^-?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`;
   - so: an optional leading `-`, digits with an optional `.` (`.5` is allowed), and an optional
@@ -412,8 +412,9 @@ For `calculate_score` and `numeric.bucket`:
 4. COMPLETENESS → full for any valid value.
 5. Invalid values (`None`, `"0.6"`, `True`, NaN, Infinity, `10**400`) → 0, no exception; the
    same values make `is_finite_number` false.
-8. `format_number`: `0.1 + 0.2` → `"0.3"`; `6.02214076e23` → `"6.022e+23"`; `0.0001` → `"1e-04"`
-   or the documented mantissa-stripped form; `343.0` → `"343"`.
+8. `format_number`: `0.1 + 0.2` → `"0.3"`; `6.02214076e23` → `"6.022e+23"`; `0.0001` →
+   `"1e-04"` (Python's exponent keeps two digits; the TS `formatNumber` gives `"1e-4"`, and the
+   difference is only cosmetic); `343.0` → `"343"`.
 6. Rounding to 2 decimals.
 7. `numeric.validate`: each N1 rule produces its exact N1 message; when two rules fail, the
    earlier one's message wins; a valid absolute and a valid percent question → `None`.
