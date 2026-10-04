@@ -3,10 +3,11 @@
 **Owner:** Jack Mayerhofer (jmayerhofer). The team's other T7 type is `map_pin` (Bill Zhang,
 `docs/design-t7-map-question.md`, MR !6): Canvas-based, party. This one is the **classroom**
 type and is not Canvas-based.
-**Status:** Draft, pre-Goldfish.
-**Branch:** cut from `main` after !6 (map_pin) merges, because both types edit the same per-type
-branches. If !6 hasn't merged when implementation starts, cut from `origin/feature/t7-map-question`
-and target that branch.
+**Status:** Revised after Goldfish round 1 (2026-10-04, fresh Claude Code session). The
+pre-Goldfish draft is commit `9d5994c`. See *§7 Goldfish revision log*.
+**Branch:** `feature/t7-numeric`, **stacked on `feature/t7-map-question` (MR !6)**. Every
+touch point below sits next to a `map_pin` branch, and "next to map_pin's" refers to the code on
+that branch. The MR targets `feature/t7-map-question` until !6 merges, then `main`.
 **Process:** Written after the T3 context docs and committed before any implementation code.
 
 ---
@@ -77,6 +78,14 @@ added a branch, `numeric` needs one too. §4 lists them.
   - `config.unit`, if present, is a string of at most 20 characters.
 - "Finite number" means `int` or `float`, **not `bool`** (`isinstance(True, int)` is true in
   Python), and not NaN or ±Infinity.
+- **Error messages**, checked in this order. `numeric.validate` returns the first that applies:
+  1. `"numeric answer_data.answer must be a finite number"`
+  2. `"numeric answer_data.toleranceMode must be 'absolute' or 'percent'"`
+  3. `"numeric tolerances must be finite numbers with 0 <= fullTolerance < zeroTolerance"`
+  4. `"numeric percent tolerance needs a non-zero answer; use absolute"`
+  5. `"numeric config.unit must be a string of at most 20 characters"`
+- **Unknown keys** in `config` and `answer_data` are ignored, as for the existing types.
+  `config` defaults to `{}` in `QuestionCreate`; a missing `unit` (or `""`) means no unit.
 
 **N2 — Linear falloff, rounded to 2 decimals.**
 
@@ -106,12 +115,20 @@ added a branch, `numeric` needs one too. §4 lists them.
   `{"zero_low": 3, "partial_low": 5, "full": 9, "partial_high": 2}`. Missing keys mean 0.
 - **Why:** a teacher learns whether the class *systematically* under- or over-estimates, which
   right/wrong can't show. This is the classroom payoff of the type.
+- **COMPLETENESS questions bucket too.** The answer is always revealed (N7), and the chart is
+  just as useful when everyone gets participation points.
 - **No new Redis keys and no new events.**
 
 **N4 — The gateway rejects malformed answers.**
 In `on_submit_answer`, for `numeric`, if `answer_data.get("value")` is not a finite number (N1),
 emit `error` `"numeric answer must include a finite number 'value'"` and return before scoring.
-This is the same pattern as map_pin's point check.
+This is the same pattern as map_pin's point check, and it goes **right after it**.
+
+- **Order matters.** In `on_submit_answer` the "already answered?" read (`state.has_answered`)
+  comes before the type checks, and an answer is only *marked* answered inside
+  `game_service.record_answer`, which runs after them.
+- **So a rejected payload does not use up the player's answer:** they can correct it and submit
+  again. Integration test 3 checks this.
 
 **N5 — Player input accepts plain and scientific notation.**
 
@@ -138,11 +155,30 @@ This is the same pattern as map_pin's point check.
 |---|---|
 | Player question | Prompt, input with unit suffix, Submit |
 | Host question | Type label "Numeric Estimate" and the hint "🔢 Type your estimate on your phone" (like map_pin's hint) |
-| Player results | "You: 0.58 · Answer: 0.62 · off by 0.04" and the points earned. "Spot on!" only if `isCorrect`; never "Correct!" for partial credit. COMPLETENESS: "Recorded" plus the answer |
+| Player results | "You: 0.58 · Answer: 0.62 · off by 0.04" and the points earned. "Spot on!" only when the client-computed verdict is full credit (see below); never "Correct!" for partial credit. COMPLETENESS: "Recorded" plus the answer |
 | Host results | The answer (large), the five-bar chart (N3), and "N of M within full credit" |
 | Player game over | Per-question card: your value, the answer, points |
-| Host game over | The answer and unit for each numeric question |
-| HTML report | Badge "Numeric", and a one-line summary: "Answer 0.62 · N guesses · M within full credit · median guess 0.58 · K under / J over" |
+| Host game over | The answer and unit, plus the **same five-bar chart** at card size. The generic option/True-False distribution is not shown for numeric |
+| HTML report | Badge "Numeric", and a one-line summary **instead of** a bar chart (like map_pin): "Answer 0.62 · N guesses · M within full credit · median guess 0.58 · K under / J over" |
+
+Definitions for the numbers above:
+
+- **"Spot on!" on the player's phone.** The personalised `question_results` has `yourPoints` but
+  no `isCorrect` (only `answer_received` has it, and the UI hides that).
+  - The phone therefore computes the verdict itself: `|value − answer| ≤ full + eps`, using the
+    reveal's tolerances and N2's rule (mode applied, same eps).
+  - It needs the player's own value, which is held in memory. If that's missing (after a reload),
+    show the answer and points with no verdict and no "off by".
+- **"N of M within full credit"**: N = the `full` bucket count; M = the sum of all five buckets
+  (= players who answered). Shown in both grading modes.
+- **"K under / J over"**: K = `zero_low` + `partial_low`, J = `partial_high` + `zero_high`.
+  Full-credit answers count in neither.
+- **"Median guess"**: the median of valid stored values (the lower middle value when the count is
+  even, as map_pin's report does). Omitted when there are 0 guesses.
+- **"off by"**: `formatNumber(|value − answer|)` plus the unit. In percent mode, followed by the
+  relative error to one decimal, e.g. "off by 17 m/s (5.0%)".
+- **Empty chart** (0 answers): all bars at zero height, the counts show 0, and the text reads
+  "No answers". No division by zero.
 
 **N8 — Both question editors get the type.**
 Admin (`frontend/admin/src/pages/QuestionEditorPage.tsx`) and host
@@ -158,10 +194,15 @@ both need it.
   - Points (the question's `points_value`, as for map_pin, not per option).
 - **Defaults** for a new numeric question (stats-tuned): absolute, full `0.05`, zero `0.15`,
   answer empty, unit empty.
+- **Parsing.** All four numeric fields are text inputs parsed with `parseNumber` (N5), so `e`
+  notation works in the editor too. The admin app gets its own `lib/numeric.ts` for this.
 - **Client checks** mirror N1. The server's 422 is still the real check, and admin's `toError`
   shows it.
-- A one-line preview under the fields: "Full credit within ±0.05; nothing beyond ±0.15", or the
-  percent equivalent.
+- **Preview line** under the fields:
+  - absolute: "Full credit within ±0.05; nothing beyond ±0.15";
+  - percent: "Full credit within ±5% (±17.15 m/s); nothing beyond ±20% (±68.6 m/s)", with the
+    absolute part computed from the typed answer and omitted while the answer is empty or 0.
+  - This is how a teacher notices a tiny effective range near zero (§6).
 
 ---
 
@@ -196,7 +237,10 @@ Same style as `services/map_pin.py`. Functions:
   `{"type": "numeric", "answer", "toleranceMode", "fullTolerance", "zeroTolerance", "unit"}`,
   with `unit` = `config.get("unit") or None`. The tolerances are the stored values, not the
   effective ones; the frontends apply the mode for display.
-- `validate(config, answer_data) -> str | None`: returns the first N1 error message, or `None`.
+- `validate(config, answer_data) -> str | None`: returns the first N1 error message (in N1's
+  order), or `None`.
+- `EPS_SCALE = 1e-9`, used as `eps = EPS_SCALE × max(1, |answer|)` in both `score_numeric` and
+  `bucket`.
 
 ### Step 2 — Validation and scoring
 
@@ -226,14 +270,22 @@ Same style as `services/map_pin.py`. Functions:
 - `_extract_answer_key`: return `numeric.bucket(...)` for valid values, otherwise `None`.
 - Type badge: `"numeric": ("Numeric", "badge-fitb")`.
 - A new `_render_numeric_summary(q, scores)` produces the N7 report line, passed through `_esc`.
-  It is called where map_pin's `_render_map_summary` is.
+  Add `elif q.type == "numeric": chart = _render_numeric_summary(q, q_scores)` to the chart
+  `if/elif` chain that already has `elif q.type == "map_pin": chart = _render_map_summary(...)`.
+  The bucket keys are therefore never drawn as bars.
 
 ### Step 5 — Player app (`frontend/player/src`)
 
-- `types/game.ts`: add `'numeric'` to `QuestionType`, and a `NumericReveal` interface matching
-  Step 1's `reveal` exactly (`unit: string | null`). Add it to the reveal union.
+- `types/game.ts`, all four places a type appears (`player/src/types/CLAUDE.md`):
+  1. `'numeric'` in `QuestionType`;
+  2. `unit?: string` in the `config` type, in **both** `QuestionPayload.config` and
+     `QuestionSummaryItem.config`;
+  3. a `NumericReveal` interface matching Step 1's `reveal` exactly (`unit: string | null`),
+     added to `PlayerAnswerReveal`;
+  4. `value?: number` in `QuestionSummaryItem.playerAnswer`.
 - `lib/numeric.ts` (new): `parseNumber(text): number | null` (N5), `formatNumber(n)` (N6),
-  `withUnit(n, unit)`.
+  `withUnit(n, unit)`, and `isFullCredit(value, reveal)` (the N7 verdict, mirroring N2 with the
+  same eps).
 - `pages/game/QuestionPage.tsx`: the N5 input for `type === 'numeric'`; it submits
   `{ value: n }` through the existing `submit(...)`.
 - `pages/game/ResultsPage.tsx`: a numeric branch per N7. It reads the player's value from the
@@ -243,8 +295,12 @@ Same style as `services/map_pin.py`. Functions:
 
 ### Step 6 — Host app (`frontend/host/src`)
 
-- `types/game.ts`: the same type and `NumericReveal` as the player app.
-- `lib/numeric.ts`: copy `formatNumber` / `withUnit` (apps share no code).
+- `types/game.ts`: the same additions as the player app wherever the host has the matching
+  types (`QuestionType`, the `config` types, `NumericReveal` in the reveal union).
+- `lib/numeric.ts`: copy `parseNumber` / `formatNumber` / `withUnit` (apps share no code; the
+  editor needs `parseNumber`).
+- `components/NumericBuckets.tsx` (new): the five-bar chart from N3, with a `size` prop
+  (`"large"` for results, `"card"` for game over). Both pages use it.
 - `pages/game/QuestionPage.tsx`: the label `numeric: 'Numeric Estimate'` and the N7 hint.
 - `pages/game/ResultsPage.tsx`: a numeric branch rendering the N3 chart.
   - Five bars in order: `zero_low`, `partial_low`, `full`, `partial_high`, `zero_high`.
@@ -254,7 +310,8 @@ Same style as `services/map_pin.py`. Functions:
     color.
   - Above the chart: the answer (`withUnit`), large. Below: "N of M within full credit".
   - Plain divs, no chart library, readable from the back of a classroom: bar labels at least 18px.
-- `pages/game/GameOverPage.tsx`: the label, and the answer display per N7.
+- `pages/game/GameOverPage.tsx`: the label; a `type === 'numeric'` branch showing the answer
+  and `<NumericBuckets size="card">`. Its generic option distribution is skipped for numeric.
 - `pages/manage/QuestionEditorPage.tsx`: N8 (Step 7's list).
 
 ### Step 7 — Question editors (admin and host, same changes in both)
@@ -273,9 +330,10 @@ In each `QuestionEditorPage.tsx`, following the map_pin branches:
 ### Step 8 — Simulator (`scripts/simulate_players.py`)
 
 - Document `numeric` in the docstring.
-- If `--game-json` provides `answer_data`: an accurate player answers
-  `answer + gauss(0, full_eff / 2)`. Everyone else answers uniformly in
-  `[answer − 3·zero_eff, answer + 3·zero_eff]`.
+- If `--game-json` provides `answer_data`: with probability `p.accuracy` (the existing
+  per-profile field) a player answers `answer + gauss(0, full_eff / 2)`. Otherwise they answer
+  uniformly in `[answer − 3·zero_eff, answer + 3·zero_eff]`. `full_eff` and `zero_eff` are the
+  effective tolerances (N1).
 - Without it: a uniform value in [−1, 1].
 
 ### Step 9 — Context docs
@@ -298,8 +356,8 @@ Update the CLAUDE.md files of every directory touched:
 | `backend/app/services/report_service.py` | reveal, key, badge, summary line |
 | `backend/app/websocket/gateway.py` | reveal, payload check |
 | `frontend/player/src/types/game.ts`, `lib/numeric.ts` (**new**), `pages/game/{Question,Results,GameOver}Page.tsx` | N5–N7 |
-| `frontend/host/src/types/game.ts`, `lib/numeric.ts` (**new**), `pages/game/{Question,Results,GameOver}Page.tsx`, `pages/manage/QuestionEditorPage.tsx` | N3, N7, N8 |
-| `frontend/admin/src/pages/QuestionEditorPage.tsx` | N8 |
+| `frontend/host/src/types/game.ts`, `lib/numeric.ts` (**new**), `components/NumericBuckets.tsx` (**new**), `pages/game/{Question,Results,GameOver}Page.tsx`, `pages/manage/QuestionEditorPage.tsx` | N3, N7, N8 |
+| `frontend/admin/src/lib/numeric.ts` (**new**, `parseNumber` only), `pages/QuestionEditorPage.tsx` | N8 |
 | `scripts/simulate_players.py` | Step 8 |
 | `tests/unit/test_numeric.py`, `tests/integration/test_numeric.py` | **new** (§5) |
 | CLAUDE.md files listed in Step 9 | context sync |
@@ -323,8 +381,8 @@ For `calculate_score` and `numeric.bucket`:
 4. COMPLETENESS → full for any valid value.
 5. Invalid values (`None`, `"0.6"`, `True`, NaN, Infinity) → 0, no exception.
 6. Rounding to 2 decimals.
-7. `numeric.validate`: each N1 rule produces its message; a valid absolute and a valid percent
-   question → `None`.
+7. `numeric.validate`: each N1 rule produces its exact N1 message; when two rules fail, the
+   earlier one's message wins; a valid absolute and a valid percent question → `None`.
 
 ### Integration tests: `tests/integration/test_numeric.py`
 
@@ -344,7 +402,8 @@ Follow `test_map_pin.py`'s structure.
    - The host's `question_results.answerDistribution` contains `full`, `partial_*` and
      `zero_*` keys with the right counts.
 3. **Bad payloads.** A guest sends `{value: "0.6"}`, then `{value: true}`, then `{}`. Each gets
-   an `error` event and no `answer_received`.
+   an `error` event and no `answer_received`. The same guest then sends a valid `{value: 0.62}`
+   and gets `answer_received` with full points (N4: rejected payloads don't use up the answer).
 4. **Import/export round trip.** Import a game JSON containing a numeric question (both modes);
    export it; `config` and `answer_data` are unchanged.
 
@@ -381,3 +440,22 @@ Follow `test_map_pin.py`'s structure.
 - **The editors drift.** The admin and host editor copies must both get N8 (T4 design D6).
 - **Reload loses "your answer"** on the player results screen. That's existing behavior for all
   types (`player/src/pages/game/CLAUDE.md`).
+
+---
+
+## 7. Goldfish revision log
+
+Round 1: a fresh Claude Code session given only this doc and the context hierarchy. Its claims
+were checked against the code before acting on them.
+
+| ID | Finding | Resolution |
+|---|---|---|
+| A | Branch was cut from `main`, which has no map_pin code, so every "next to map_pin" anchor pointed at nothing | Branch rebased onto `feature/t7-map-question`; header states it's stacked on !6 |
+| B | Host GameOver would show bucket keys through the generic distribution | Shared `NumericBuckets` chart at card size; generic distribution skipped (N7, Step 6) |
+| C | HTML report might draw bucket keys as bars | The numeric summary line replaces the chart, via the same `elif` chain as map_pin (Step 4) |
+| D | A malformed payload might use up the player's one answer | Checked: "already answered" is only read before the type check and set in `record_answer`, after it, so it doesn't. Placement stated in N4; test 3 extended |
+| E | Validation messages unspecified; unknown keys / missing config unclear | Exact messages in check order; extra keys ignored; config defaults to `{}` (N1) |
+| F | Player types list incomplete (config, summary item, player answer) | All four places listed for both apps (Steps 5–6) |
+| G | The player's `question_results` has no `isCorrect` | The verdict is computed client-side from the reveal with N2's rule; omitted after a reload (N7, `isFullCredit`) |
+| H | Numbers undefined: M, under/over, COMPLETENESS charting, "off by" in percent mode, editor preview, empty chart | Defined in N7, N3 and N8 |
+| I | Simulator accuracy source, editor field parsing | `p.accuracy` named; editors use `parseNumber`; admin gets `lib/numeric.ts` (Steps 7–8) |
