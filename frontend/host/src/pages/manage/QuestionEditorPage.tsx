@@ -246,6 +246,9 @@ function formToPayload(form: FormState) {
 
 // ---- numeric (docs/design-t7-numeric.md N8) ----
 
+/** [full, zero] tolerance defaults per mode (stats-tuned absolute; ±5% / ±20% percent). */
+const NUM_DEFAULTS = { absolute: ['0.05', '0.15'], percent: ['5', '20'] } as const;
+
 /** "≈ 0.62 (±0.05 / ±0.15)" or "≈ 343 m/s (±5% / ±20%)". */
 function numericListPreview(ad: Record<string, unknown>, config: Record<string, unknown>): string {
   const answer = ad['answer'];
@@ -300,18 +303,29 @@ function NumericFields({ form, set }: {
           <select
             className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 text-sm"
             value={form.numMode}
-            onChange={(e) => set('numMode', e.target.value as 'absolute' | 'percent')}
+            onChange={(e) => {
+              const mode = e.target.value as 'absolute' | 'percent';
+              set('numMode', mode);
+              // Swap still-default tolerances so 0.05 doesn't silently become 0.05%.
+              const [from, to] = mode === 'percent'
+                ? [NUM_DEFAULTS.absolute, NUM_DEFAULTS.percent]
+                : [NUM_DEFAULTS.percent, NUM_DEFAULTS.absolute];
+              if (form.numFull === from[0] && form.numZero === from[1]) {
+                set('numFull', to[0]);
+                set('numZero', to[1]);
+              }
+            }}
           >
             <option value="absolute">± absolute</option>
             <option value="percent">± percent of answer</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">Full credit within ±{pct ? ' %' : ''}</label>
+          <label className="block text-xs text-slate-400 mb-1">Full credit within ±{pct ? ' (%)' : ''}</label>
           <Input value={form.numFull} onChange={(e) => set('numFull', e.target.value)} className="w-28 text-sm" />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">Zero credit beyond ±{pct ? ' %' : ''}</label>
+          <label className="block text-xs text-slate-400 mb-1">Zero credit beyond ±{pct ? ' (%)' : ''}</label>
           <Input value={form.numZero} onChange={(e) => set('numZero', e.target.value)} className="w-28 text-sm" />
         </div>
       </div>

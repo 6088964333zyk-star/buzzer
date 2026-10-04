@@ -119,6 +119,8 @@ function QuestionRow({ item, index }: { item: QuestionSummaryItem; index: number
               <span className="text-indigo-400 text-base">●</span>
             ) : isCorrect ? (
               <span className="text-green-400 text-base">✓</span>
+            ) : numericReveal && item.pointsAwarded > 0 ? (
+              <span className="text-amber-400 text-base" title="Partial credit">≈</span>
             ) : (
               <span className="text-red-400 text-base">✗</span>
             )}
