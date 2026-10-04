@@ -25,7 +25,7 @@ export interface PlayerLeftPayload {
 }
 
 export type QuestionType =
-  | 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin';
+  | 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin' | 'numeric';
 
 export interface MapPinReveal {
   type: 'map_pin';
@@ -35,6 +35,16 @@ export interface MapPinReveal {
   aspectRatio: number;
 }
 
+/** Matches backend services/numeric.reveal exactly (docs/design-t7-numeric.md Step 1). */
+export interface NumericReveal {
+  type: 'numeric';
+  answer: number;
+  toleranceMode: 'absolute' | 'percent';
+  fullTolerance: number;
+  zeroTolerance: number;
+  unit: string | null;
+}
+
 export interface QuestionPayload {
   questionId: number;
   questionNumber: number;
@@ -42,7 +52,7 @@ export interface QuestionPayload {
   type: QuestionType;
   gradingType: 'ACCURACY' | 'COMPLETENESS';
   prompt: string;
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number };
+  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
   timeLimitSeconds: number;
   pointsValue: number;
   editDistance?: number;
@@ -78,6 +88,7 @@ export type AnswerReveal =
   | { type: 'completeness' }
   | { type: 'multi_select'; answerPoints: number[] }
   | MapPinReveal
+  | NumericReveal
   | Record<string, never>;
 
 export interface HostResultsPayload {
@@ -94,7 +105,7 @@ export interface HostQuestionSummaryItem {
   prompt: string;
   type: QuestionType;
   gradingType: 'ACCURACY' | 'COMPLETENESS';
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number };
+  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
   pointsValue: number;
   answerReveal: AnswerReveal;
   answerDistribution: Record<string, number>;

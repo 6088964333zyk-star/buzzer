@@ -3,6 +3,7 @@ import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import type { PlayerAnswerReveal, QuestionSummaryItem } from '../../types/game';
 import { formatPct, mapDistance } from '../../lib/mapPin';
+import { describeOffBy, isFullCredit, withUnit } from '../../lib/numeric';
 
 function describePlayerAnswer(
   playerAnswer: QuestionSummaryItem['playerAnswer'],
@@ -17,6 +18,13 @@ function describePlayerAnswer(
     return reveal?.type === 'map_pin'
       ? `${formatPct(mapDistance(p, reveal.target, reveal.aspectRatio))} of the map away`
       : 'Pin placed';
+  }
+  if (type === 'numeric') {
+    const v = playerAnswer.value;
+    if (typeof v !== 'number') return 'No answer';
+    return reveal?.type === 'numeric'
+      ? `${withUnit(v, reveal.unit)} (off by ${describeOffBy(v, reveal)})`
+      : String(v);
   }
   if (type === 'multiple_choice') {
     const idx = playerAnswer.selectedIndex;
@@ -61,6 +69,9 @@ function describeCorrectAnswer(
   if (answerReveal.type === 'map_pin') {
     return 'Green pin on the host screen';
   }
+  if (answerReveal.type === 'numeric') {
+    return withUnit(answerReveal.answer, answerReveal.unit);
+  }
   if (answerReveal.type === 'multi_select') {
     const correct = answerReveal.answerPoints
       .map((p, i) => ({ p, i }))
@@ -77,14 +88,19 @@ function QuestionRow({ item, index }: { item: QuestionSummaryItem; index: number
   const isCompleteness =
     item.answerReveal.type === 'completeness' || item.gradingType === 'COMPLETENESS';
   const noAnswer = !item.playerAnswer;
-  const isCorrect = !isCompleteness && !noAnswer && item.pointsAwarded > 0;
+  // numeric: ✓ only for full credit, and the answer is always shown (design N7).
+  const numericReveal = item.answerReveal.type === 'numeric' ? item.answerReveal : null;
+  const numericValue = item.playerAnswer?.value;
+  const isCorrect = numericReveal
+    ? !isCompleteness && typeof numericValue === 'number' && isFullCredit(numericValue, numericReveal)
+    : !isCompleteness && !noAnswer && item.pointsAwarded > 0;
   // A map guess is a distance, not right/wrong; the distance label says it all.
-  const showCorrectAnswer = !isCompleteness && !isCorrect && item.type !== 'map_pin';
+  const showCorrectAnswer = numericReveal !== null || (!isCompleteness && !isCorrect && item.type !== 'map_pin');
 
   const playerAnswerLabel = describePlayerAnswer(
     item.playerAnswer, item.type, options, item.answerReveal,
   );
-  const correctAnswerLabel = !isCompleteness
+  const correctAnswerLabel = !isCompleteness || numericReveal
     ? describeCorrectAnswer(item.answerReveal, options)
     : '';
 
@@ -103,6 +119,8 @@ function QuestionRow({ item, index }: { item: QuestionSummaryItem; index: number
               <span className="text-indigo-400 text-base">●</span>
             ) : isCorrect ? (
               <span className="text-green-400 text-base">✓</span>
+            ) : numericReveal && item.pointsAwarded > 0 ? (
+              <span className="text-amber-400 text-base" title="Partial credit">≈</span>
             ) : (
               <span className="text-red-400 text-base">✗</span>
             )}

@@ -26,6 +26,7 @@ export default function QuestionPage() {
     fill_in_the_blank: 'Fill in the Blank',
     multi_select: 'Multi-Select',
     map_pin: 'Map Pin',
+    numeric: 'Numeric Estimate',
   };
 
   function editDistanceLabel(d: number): string {
@@ -80,6 +81,9 @@ export default function QuestionPage() {
       {/* The map itself stays off the big screen so it can't hint the answer. */}
       {!questionLocked && currentQuestion.type === 'map_pin' && (
         <p className="text-indigo-300 text-2xl">📍 Tap the map on your phone</p>
+      )}
+      {!questionLocked && currentQuestion.type === 'numeric' && (
+        <p className="text-indigo-300 text-2xl">🔢 Type your estimate on your phone</p>
       )}
 
       <div className="text-slate-300 text-xl">

@@ -29,7 +29,7 @@ from ..database import AsyncSessionLocal
 from ..models.game import Question
 from ..models.session import GameSession
 from ..redis_client import get_redis
-from ..services import game_service, map_pin
+from ..services import game_service, map_pin, numeric
 from ..services import state_service as state
 from ..services.auth_service import get_user_by_id
 from . import events as E
@@ -141,6 +141,8 @@ def _answer_reveal(q: Question) -> dict:
     """
     if q.type == "map_pin":  # before COMPLETENESS: always reveal the target
         return map_pin.reveal(q.answer_data, q.config)
+    if q.type == "numeric":  # before COMPLETENESS: always reveal the answer
+        return numeric.reveal(q.answer_data, q.config)
     if q.grading_type == "COMPLETENESS":
         return {"type": "completeness"}
     if q.type == "multiple_choice":
@@ -1138,6 +1140,16 @@ async def on_submit_answer(sid: str, data: dict) -> None:
             answer_data.get("point")
         ):
             await _emit_error(sid, "map_pin answer must include point {x, y} in [0, 1]")
+            return
+
+        # Before record_answer, so a rejected payload doesn't use up the
+        # player's one answer (docs/design-t7-numeric.md N4).
+        if question.type == "numeric" and not numeric.is_finite_number(
+            answer_data.get("value")
+        ):
+            await _emit_error(
+                sid, "numeric answer must include a finite number 'value'"
+            )
             return
 
         if question.type == "multi_select":

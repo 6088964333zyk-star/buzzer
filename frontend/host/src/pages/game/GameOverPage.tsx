@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { NumericBuckets } from '../../components/NumericBuckets';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import type { AnswerReveal, HostQuestionSummaryItem } from '../../types/game';
@@ -87,6 +88,7 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
     fill_in_the_blank: 'Fill in the Blank',
     multi_select: 'Multi-Select',
     map_pin: 'Map Pin',
+    numeric: 'Numeric Estimate',
   };
 
   const answeredPct = totalPlayers > 0 ? Math.round((totalAnswered / totalPlayers) * 100) : 0;
@@ -150,6 +152,12 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
               fullRadius={reveal.fullRadius}
               dots={distributionDots(answerDistribution)}
             />
+          </div>
+        )}
+        {/* Numeric gets the five-bar chart, not bucket keys as option bars (design N7). */}
+        {type === 'numeric' && reveal.type === 'numeric' && (
+          <div className="max-w-md">
+            <NumericBuckets reveal={reveal} distribution={answerDistribution} size="card" />
           </div>
         )}
         {(type === 'multiple_choice' || type === 'multi_select') && (config.options ?? []).map((opt, i) => {

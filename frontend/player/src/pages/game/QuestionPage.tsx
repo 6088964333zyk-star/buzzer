@@ -3,6 +3,7 @@ import { useGame } from './GameLayout';
 import { TimerBar } from '../../components/ui/TimerBar';
 import { MapCanvas } from '../../components/MapCanvas';
 import type { MapPoint } from '../../lib/mapPin';
+import { parseNumber, withUnit } from '../../lib/numeric';
 
 const OPTION_COLORS = [
   'bg-red-600 hover:bg-red-500 border-red-500',
@@ -207,6 +208,90 @@ export default function QuestionPage() {
         )}
         {submitted && <p className="text-center text-slate-400 text-sm mt-4">Answer submitted — waiting for results…</p>}
         {!submitted && questionLocked && lockedMsg}
+      </div>
+    );
+  }
+
+  if (currentQuestion.type === 'numeric') {
+    // No prompt on the phone (convention); iOS's decimal keypad has no '-' or 'e',
+    // hence the two buttons (docs/design-t7-numeric.md N5).
+    const unit = currentQuestion.config.unit;
+    const parsed = parseNumber(inputValue);
+    const showError = inputValue.trim() !== '' && parsed === null;
+    const toggleSign = () =>
+      setInputValue(v => (v.startsWith('-') ? v.slice(1) : `-${v}`));
+    const addExponent = () =>
+      setInputValue(v => (/[eE]/.test(v) ? v : `${v}e`));
+    return (
+      <div className="min-h-screen flex flex-col justify-center p-4 gap-5">
+        {questionLabel}
+        <TimerBar key={currentQuestion.questionId} totalSeconds={currentQuestion.timeLimitSeconds} paused={questionLocked} />
+
+        {submitted ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="text-5xl">🔒</div>
+            <p className="text-slate-100 text-xl font-bold">Answer locked in!</p>
+            {parsed !== null && <p className="text-slate-400 text-base">{withUnit(parsed, unit)}</p>}
+            <p className="text-slate-500 text-sm mt-2">Waiting for results…</p>
+          </div>
+        ) : questionLocked ? (
+          <div className="flex flex-col items-center gap-3 mt-4">
+            {lockedMsg}
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (parsed !== null) submit({ value: parsed });
+            }}
+            className="flex flex-col gap-4"
+          >
+            <p className="text-center text-slate-400 text-sm">Type your estimate</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="e.g. 0.62"
+                autoFocus
+                aria-invalid={showError}
+                aria-label="Your estimate"
+                className="flex-1 min-w-0 rounded-xl px-4 py-4 text-slate-900 text-2xl bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {unit && <span className="text-slate-300 text-xl font-semibold shrink-0">{unit}</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={toggleSign}
+                className="rounded-xl py-4 text-2xl font-bold bg-slate-700 text-slate-100 hover:bg-slate-600 active:scale-95"
+                aria-label="Toggle minus sign"
+              >
+                ±
+              </button>
+              <button
+                type="button"
+                onClick={addExponent}
+                className="rounded-xl py-4 text-2xl font-bold bg-slate-700 text-slate-100 hover:bg-slate-600 active:scale-95"
+                aria-label="Times ten to the power"
+              >
+                ×10ⁿ
+              </button>
+            </div>
+            {showError && (
+              <p className="text-amber-400 text-sm text-center">Use digits and a dot, e.g. 0.62 or 6.02e23</p>
+            )}
+            <button
+              type="submit"
+              disabled={parsed === null}
+              className="w-full rounded-2xl py-5 text-white font-black text-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Submit
+            </button>
+          </form>
+        )}
       </div>
     );
   }

@@ -15,7 +15,9 @@ pages render the phase the server has put this player in.
 - `QuestionPage.tsx` — The answer UI, one branch per type: colored A/B/C… buttons
   (`multiple_choice` → `{selectedIndex}`), True/False buttons (`{selectedValue}`), text box
   (`fill_in_the_blank` → `{text}`, `config.maxLength`, default 100), toggle list + Submit
-  (`multi_select` → `{selectedIndices}`). Measures `answerTimeMs` from page mount. Falls back to
+  (`multi_select` → `{selectedIndices}`), and for `numeric` (T7) a decimal-keypad text field
+  with "±" / "×10ⁿ" buttons (iOS's keypad has no `-` or `e`) → `{value: number}`, parsed by
+  `lib/numeric.parseNumber`. Measures `answerTimeMs` from page mount. Falls back to
   "Unsupported question type."
 - `FeedbackPage.tsx` — "Answer locked in!" waiting screen after `answer_received`; deliberately
   shows no correctness.
@@ -42,7 +44,10 @@ after the player has a token. Pages read `useGame()` only; the one outbound even
   each switch on `type`. A new type (T7) needs all three, and its `answer_data` shape must match
   what the backend's `calculate_score` reads.
 - `ResultsPage.describeAnswer` has no `multi_select` branch, so "your answer" is blank for that type.
-- `ResultsPage` treats any `yourPoints > 0` as correct, so partial credit shows as correct.
+- `ResultsPage` treats any `yourPoints > 0` as correct, so partial credit shows as correct —
+  except `map_pin` and `numeric` (T7), which have their own branches. `numeric` computes
+  "Spot on!" on the phone with `lib/numeric.isFullCredit`, because `question_results` carries
+  no `isCorrect`.
 - **Reconnecting mid-game doesn't navigate by itself.** On `sync_state` with `IN_PROGRESS` the
   layout only sets `gameStatus`; the player moves on only when the server pushes the late-join
   `new_question` or the next `question_results`. If they already answered, they wait.

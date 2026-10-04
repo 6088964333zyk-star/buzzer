@@ -6,6 +6,10 @@ Small shared helpers: the REST client, the Tailwind class-merge utility, and a J
 ## Contents
 - `api.ts` — `api.get` / `api.post` wrapping `fetch('/api' + path)`. Adds `Authorization: Bearer`
   from `localStorage.token`, throws `Error(detail)` on non-2xx, returns `{}` for empty bodies.
+- `numeric.ts` — `numeric` question helpers (T7, `docs/design-t7-numeric.md`): `parseNumber`
+  (plain or `e` notation, no commas), `formatNumber`/`withUnit` (display only — they round),
+  `effectiveTolerances`, `isFullCredit` (same rule and epsilon as the server) and
+  `describeOffBy`. Mirrors `backend/app/services/numeric.py`.
 - `utils.ts` — `cn(...)` (`clsx` + `tailwind-merge`) and `isTokenExpired(token)`, which decodes
   the JWT payload in the browser and compares `exp` to now (no signature check).
 

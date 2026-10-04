@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from ..services import map_pin
+from ..services import map_pin, numeric
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ class QuestionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: str = Field(
         ...,
-        pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select|map_pin)$",
+        pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select|map_pin|numeric)$",
     )
     grading_type: str = Field(..., pattern="^(ACCURACY|COMPLETENESS)$")
     prompt: str = Field(..., min_length=1, max_length=2000)
@@ -211,6 +211,12 @@ class QuestionCreate(BaseModel):
                     "map_pin answer_data needs numeric 'fullRadius' and 'zeroRadius' "
                     "with 0 <= fullRadius < zeroRadius <= 1"
                 )
+        if self.type == "numeric":
+            # Answer and tolerances are required for both grading types so every
+            # reveal can show the answer (docs/design-t7-numeric.md N1).
+            error = numeric.validate(self.config, self.answer_data)
+            if error:
+                raise ValueError(error)
         return self
 
 
@@ -218,7 +224,7 @@ class QuestionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: str | None = Field(
         None,
-        pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select|map_pin)$",
+        pattern="^(multiple_choice|true_false|fill_in_the_blank|multi_select|map_pin|numeric)$",
     )
     grading_type: str | None = Field(None, pattern="^(ACCURACY|COMPLETENESS)$")
     prompt: str | None = Field(None, min_length=1, max_length=2000)

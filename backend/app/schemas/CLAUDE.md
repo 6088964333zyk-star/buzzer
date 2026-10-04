@@ -35,6 +35,11 @@ file format and the API share one validator.
 - `map_pin` (T7): `config.aspectRatio` > 0 is required; `answer_data` needs `target {x, y}` in
   [0, 1] and `0 ≤ fullRadius < zeroRadius ≤ 1` for **both** grading types. Player payload
   `{point: {x, y}}`. See `services/map_pin.py` and `docs/design-t7-map-question.md`.
+- `numeric` (T7): `config.unit` optional (string ≤ 20); `answer_data` needs a finite `answer`,
+  `toleranceMode` `absolute`|`percent`, and `0 ≤ fullTolerance < zeroTolerance`; percent mode
+  needs `answer ≠ 0`. Required for **both** grading types. Player payload `{value: n}`. The
+  checks and their exact messages live in `services/numeric.validate`
+  (`docs/design-t7-numeric.md`).
 - The allowed question types are a regex **duplicated** in `QuestionCreate.type` and
   `QuestionUpdate.type`. Adding a type means editing both, plus the validator.
 - Key naming is inconsistent by type and must be matched exactly: multiple_choice /
@@ -48,5 +53,5 @@ file format and the API share one validator.
 - The answer payload players send is not defined here either; it's implicit in
   `game_service.calculate_score`: `selectedIndex` (multiple_choice), `selectedValue`
   (true_false), `text` (fill_in_the_blank), `selectedIndices` (multi_select), `point`
-  (map_pin).
+  (map_pin), `value` (numeric).
 - `UserUpdate.role` only allows `USER`/`ADMIN`; `GUEST` is created by the guest-join flow only.
