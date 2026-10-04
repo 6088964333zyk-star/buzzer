@@ -63,7 +63,11 @@ export embeds the images (format version 2); import accepts versions 1 and 2.
 - Access: host routes call `game_service.assert_host_can_manage_game` (the same check as the
   host question routes). Admin routes are `require_admin`. The public GET has no auth (D2).
 - Deleting a game deletes its images through the FK cascade. `delete_game` needs no change,
-  because it ends in `db.delete(game)`.
+  because it ends in `db.delete(game)`. **No ORM `relationship` from `Game` to images:** with
+  one, and without `passive_deletes=True`, the ORM would try to null `game_id` before the
+  delete. Tests run against the real MySQL stack, so the cascade is exercised.
+- `data` is mapped with `deferred()`. Lists and the ETag/304 check never load the bytes; only
+  the 200 response of the public GET and export read them.
 - Self-critique:
   - The same picture used in two games is stored twice. That's acceptable at classroom scale,
     and it keeps export, import and delete simple.
@@ -76,7 +80,10 @@ export embeds the images (format version 2); import accepts versions 1 and 2.
   - `Cache-Control: no-cache` (the browser keeps a copy but revalidates every time, so a
     replaced image shows at once);
   - `X-Content-Type-Options: nosniff`.
-- A request with `If-None-Match` equal to the ETag gets 304 with no body.
+- A request whose `If-None-Match` matches gets 304 with no body. Parsing: split on commas,
+  strip whitespace, a leading `W/` and quotes. It matches if any value equals the sha256 or is
+  `*`.
+- Any query string is ignored. The editors add `?v=<sha256>` purely to bust caches (Step 6).
 - An unknown id gets 404.
 - Self-critique:
   - Anyone holding the link can view the image without logging in. Ids are 128-bit random and
@@ -99,7 +106,9 @@ existing "no prompt on the phone" convention.
   is also the image's `alt`.
 - Phone: when any option has an image, the options render as a 2-column grid of tiles (image on
   top, text below), and selection works exactly as now.
-- Host results: a thumbnail appears next to each option's bar.
+- Host results: a thumbnail appears next to each option's bar. The host already gets
+  `config` in both `new_question` and `sync_state` (`gateway._question_payload` is used for
+  both), so a reconnecting host still has `optionImages` and `mapImageId`.
 - Self-critique: four tiles on a 360 px phone are about 160 px wide. The editor hint says "use
   simple, high-contrast images".
 
@@ -109,8 +118,14 @@ existing "no prompt on the phone" convention.
   (the sha256 and ETag change).
   - It is refused with **409** while the game has a live room (`assert_no_live_session`).
   - It is also refused with **409** when a `map_pin` question uses the image as its map and the
-    new image's aspect ratio differs by more than 1%. The target coordinates are image
-    fractions, so a different shape would move the answer.
+    new image's aspect ratio differs by more than 1%, i.e. `abs(new_ratio / old_ratio - 1) >
+    0.01`. The target coordinates are image fractions, so a different shape would move the
+    answer. Message: `Image is the map of question(s) 3; the new image must keep its shape`.
+  - It is refused with **409** when it is the map of a `map_pin` question that **already has
+    answers** (any `session_scores` row): `Image is the map of answered question(s) 3`. Old
+    answers would land on a different map. This mirrors the T4 rule that an answered
+    question's type can't change. Prompt and option images may be replaced at any time; they
+    don't affect scoring.
   - Otherwise the replace succeeds. Each `map_pin` question using the image gets its
     `config.aspectRatio` rewritten to the new exact ratio.
 - **Delete:**
@@ -156,6 +171,16 @@ Version 2 file shape:
 
 - `ref` matches `^[A-Za-z0-9_-]{1,32}$` and is unique within the file. Export uses `img1`,
   `img2`, … in upload order.
+- Import details:
+  - An invalid or duplicate `ref` → 422 `Image ref <ref> is invalid or duplicated`.
+  - Missing `data` or bad base64 → 422 `Image <ref> invalid: File is not a valid image`.
+  - `filename` is optional (default `image`) and is cut to 255 characters.
+  - `mime` is ignored and re-detected (D8).
+  - Images that no question references are still imported: they are part of the game's
+    library.
+  - New errors keep `import_game`'s existing `HTTPException(422, detail=…)` shape, so all of
+    that route's errors look the same (`routers/CLAUDE.md` notes the `detail` vs `message`
+    split).
 - Self-critique:
   - A file with several 2 MB images is large: base64 adds a third. nginx gets
     `client_max_body_size 12m`.
@@ -171,6 +196,9 @@ the built-in world map for that question.
   This overrides whatever the client sent, so the canvas and the scoring always use the real
   shape. `aspectRatio` stays a required key for the validator (T7), and only its value is
   replaced.
+- Changing `config.mapImageId` (setting, clearing or switching it) on a `map_pin` question that
+  already has answers → **409** `Cannot change the map of a question that has already been
+  answered` (in `question_service.update`, next to the type-change rule).
 - Scoring, reveal, distribution keys and the gateway check are unchanged. Everything is
   already expressed in image fractions (T7 D1). A "click a region of an image" question is a
   `map_pin` on that image, with the radii as the region size.
@@ -183,15 +211,25 @@ the built-in world map for that question.
 - Accepted: PNG, JPEG, GIF and WebP. **No SVG**, because an SVG can carry script.
 - Max size 2 MB, enforced by reading at most 2 MB + 1 byte.
 - Max 25 megapixels (`width*height`), which guards against decompression bombs.
-- The format is detected by Pillow (`Image.open(BytesIO(data))`, then `.verify()`, then reopen
-  for size). `mime` comes from the detected `format` (`PNG→image/png`, `JPEG→image/jpeg`,
-  `GIF→image/gif`, `WEBP→image/webp`). The client's `Content-Type` and file extension are
-  ignored.
-- Errors are **422** with messages:
-  - `Unsupported image type; use PNG, JPEG, GIF or WebP`;
-  - `Image is larger than 2 MB`;
-  - `Image is larger than 25 megapixels`;
-  - `File is not a valid image`.
+- The format is detected by Pillow. `mime` comes from the detected `format` (`PNG→image/png`,
+  `JPEG→image/jpeg`, `GIF→image/gif`, `WEBP→image/webp`). The client's `Content-Type` and file
+  extension are ignored, and so is the `mime` field in an imported file.
+- `inspect(data)` steps, each failure → **422** with exactly one message:
+  1. more than `MAX_BYTES` → `Image is larger than 2 MB`;
+  2. `Image.open(BytesIO(data))` raises `UnidentifiedImageError` (SVG, text, anything Pillow
+     doesn't know) → `Unsupported image type; use PNG, JPEG, GIF or WebP`;
+  3. the format is not in `FORMATS` (BMP, TIFF, ICO, …) → the same Unsupported message;
+  4. `width * height > MAX_PIXELS`, read from the header before any decoding →
+     `Image is larger than 25 megapixels`. Pillow's own `DecompressionBombError` (and its
+     warning) is caught and mapped to the same message, so the order of the two checks
+     doesn't matter;
+  5. `.verify()` on a fresh open raises (`SyntaxError`, `OSError`, `ValueError`, e.g. a
+     truncated file) → `File is not a valid image`.
+- **EXIF orientation.** Phone photos often store a rotated image plus an EXIF orientation tag,
+  and browsers display them rotated (also when drawn on a canvas). `width`/`height` are the
+  **displayed** size: if the EXIF orientation is 5–8 (a 90° rotation), the two are swapped.
+  The bytes are stored unchanged. This keeps the `map_pin` aspect ratio equal to what players
+  see.
 - New dependency: `Pillow>=10` in `backend/requirements.txt`.
 
 **Config reference rules (all question types).**
@@ -204,6 +242,11 @@ the built-in world map for that question.
 - **Ownership** needs the DB, so it is checked in `question_service.create/update` and in
   import: every referenced id must exist in `question_images` with this `game_id`, else 422
   `Image <id> does not belong to this game`.
+- **Update semantics:** `question_service.update` merges *fields*, not keys inside `config`.
+  A `config` in the request replaces the stored one as a whole, which is today's behavior.
+  So the editors always send the complete config, and removing an image means leaving its
+  key out. The editors omit `optionImages` when every entry is null, and omit
+  `imageId`/`mapImageId` when they are null.
 
 ## 3. Alternatives considered
 
@@ -250,7 +293,7 @@ the built-in world map for that question.
 
 ### Step 3 — Schemas and routes
 - `schemas/admin.py`:
-  - `ImageResponse {id, game_id, filename, mime, width, height, size_bytes, updated_at,
+  - `ImageResponse {id, game_id, filename, mime, width, height, size_bytes, sha256, updated_at,
     used_by: list[int]}`;
   - in `QuestionCreate.validate_structure`, the shape checks for the three config keys.
 - `routers/host.py` (each calls `assert_host_can_manage_game` on the image's game):
@@ -276,10 +319,18 @@ the built-in world map for that question.
   flow). This step does not change that.
 
 ### Step 6 — Frontends (copies per app; no shared code)
-- `lib/images.ts` (host, player, admin): `imageUrl(id) = `/api/images/${id}``.
+- `lib/images.ts` (host, player, admin): `imageUrl(id, v?)` returns `/api/images/${id}`, plus
+  `?v=${v}` when given. The editors pass the image's `sha256` from `ImageResponse`, so a
+  replaced image gets a new URL and both `<img>` and the `MapCanvas` cache (keyed by full URL)
+  reload it. The game pages pass no `v`: replace is blocked during a live room (D5), and
+  `Cache-Control: no-cache` covers later sessions.
+- The files named below exist today. `components/MapCanvas.tsx` is in all three apps, and
+  `MapPicker.tsx` in host and admin, from T7. The `components/CLAUDE.md` files predate them and
+  are fixed in Step 8.
 - **Host** (`frontend/host/src`):
   - `lib/api.ts`: add `postForm` and `putForm`, which send `FormData` without the JSON
-    `Content-Type`.
+    `Content-Type`. Port admin's `toError` so a FastAPI validation array (e.g. an upload with no
+    file) shows `file: Field required` instead of `HTTP 422`.
   - `components/ImageLibrary.tsx`: a grid of the game's images with a thumbnail, filename,
     size, "Used by Q2, Q5", **Replace** (file input → `PUT`) and **Delete** (confirm →
     `DELETE`; the server's 409 message is shown), plus an **Upload** button.
@@ -298,7 +349,8 @@ the built-in world map for that question.
   - `components/MapCanvas.tsx`, `MapPicker.tsx`: an `imageUrl` prop and a URL-keyed image
     cache. The canvas height is capped at 70vh on the host pages.
   - `pages/game/QuestionPage.tsx` and `ResultsPage.tsx`:
-    - the prompt image above the prompt (`max-h-[40vh] object-contain`);
+    - the prompt image above the prompt (`max-h-[40vh] object-contain`), shown and hidden
+      exactly when the prompt text is (it follows the prompt in every state);
     - option thumbnails on Results;
     - `map_pin` passes `imageUrl` when `config.mapImageId` is set.
   - `types/game.ts`: `config` gets `imageId?`, `optionImages?`, `mapImageId?`.
@@ -307,7 +359,8 @@ the built-in world map for that question.
   additive branches, as with map_pin.
 - **Player** (`frontend/player/src`):
   - `pages/game/QuestionPage.tsx`: the MC/MS tile grid (D4) when any `optionImages` entry is
-    non-null; `map_pin` passes `imageUrl`.
+    non-null. A tile whose entry is null keeps the same height, with the text centered where
+    the image would be. `map_pin` passes `imageUrl`.
   - `ResultsPage.tsx` / `GameOverPage.tsx`: `map_pin` passes `imageUrl`.
   - `components/MapCanvas.tsx` per above; `types/game.ts`.
 
@@ -318,7 +371,9 @@ line.
 
 ### Step 8 — Context docs and README
 Sync the `CLAUDE.md` files of `models`, `schemas`, `routers`, `services` and the backend root,
-and the frontend `src`, `pages`, `components` and `lib` files of all three apps. Add the
+and the frontend `src`, `pages`, `components` and `lib` files of all three apps. The
+`components/CLAUDE.md` files also get the T7 `MapCanvas`/`MapPicker` entries they are
+missing today. Add the
 version 2 format to README "Quiz import and export".
 
 ### Step 9 — Tests (T5)
@@ -327,7 +382,10 @@ version 2 format to README "Quiz import and export".
     returns the right mime and size;
   - rejects SVG text, plain text and a truncated PNG with the D8 messages;
   - the mime comes from the content (a PNG named `x.jpg` → `image/png`);
-  - `referenced_ids` and `fill_map_aspect` (with and without `mapImageId`).
+  - `referenced_ids` and `fill_map_aspect` (with and without `mapImageId`);
+  - a BMP → Unsupported; a header claiming 30 megapixels → the megapixel message;
+  - a JPEG with EXIF orientation 6 reports swapped width/height;
+  - the `If-None-Match` parser (`W/"x"`, `"a", "x"`, `*`).
 - **Integration** `tests/integration/test_images.py` (reuses `World` from `test_host_api.py`):
   - host upload → list → public GET returns the bytes, `Content-Type` and `ETag`, and
     `If-None-Match` → 304;
@@ -340,6 +398,9 @@ version 2 format to README "Quiz import and export".
   - `map_pin` with `mapImageId` gets `aspectRatio` from the image; replacing it with a
     different-ratio image → 409, and with the same ratio → 200;
   - replace/delete during a live room → 409;
+  - on an answered `map_pin`, changing `mapImageId` → 409, and replacing its map image → 409;
+    replacing a prompt image on an answered question → 200;
+  - updating with a config that leaves out `imageId` removes the prompt image;
   - admin export of a game with images → version 2 → import → the images are re-created and
     the refs are remapped; a version-1 sample game still imports.
 
@@ -372,3 +433,23 @@ version-2 file under `sample_games/` with an image-option question and a custom-
      image and thumbnails on the big screen; the custom map on both screens.
   5. Replace an image and see it update; delete a used image and get the 409 message.
   6. Admin: export the game (version 2) and re-import it.
+
+## 8. Goldfish revision log
+
+A fresh session (`/goldfish-test`, no memory of the design discussion) read this doc and the
+context hierarchy only. Its findings and the resolution of each:
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | Update merge semantics unclear: can an image be removed? | Config is replaced as a whole; editors omit null keys (Config reference rules) |
+| 2 | A replaced image still shows in the editor (same URL, MapCanvas cache) | `imageUrl(id, v)` with `?v=sha256`; `ImageResponse.sha256` (Step 6) |
+| 3 | EXIF-rotated phone photos give a wrong aspect ratio | Width/height are the displayed size (D8) |
+| 4 | Component paths don't match `components/CLAUDE.md` | Files exist (T7); the docs are stale and get fixed in Step 8 |
+| 5 | Which message for SVG; which Pillow errors map where | Ordered error mapping in D8 |
+| 6 | Listing images would load all the bytes | `deferred()` on `data` (D1) |
+| 7 | FK cascade vs an ORM relationship; test DB | No relationship; tests use MySQL (D1) |
+| 8 | Import: mime, bad refs, filename, unused images, error shape | Import details (D6) |
+| 9 | "1% aspect difference" undefined | `abs(new/old - 1) > 0.01` (D5) |
+| 10 | Changing the map of an answered question changes old answers | **Decided with Bill:** 409 for the map of an answered `map_pin`; prompt/option images stay replaceable (D5, D7) |
+| 11 | Does the host have `config` on results and after reconnect? | Yes, via `_question_payload` for both events (D4) |
+| 12 | Minor: host 422 arrays, prompt image when locked, empty tiles, `If-None-Match` forms | Step 6 and D2 |
