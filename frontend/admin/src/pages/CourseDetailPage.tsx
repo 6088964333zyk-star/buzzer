@@ -45,10 +45,11 @@ export default function CourseDetailPage() {
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
   const [courseError, setCourseError] = useState('');
-  const [access, setAccess] = useState<AccessEntry[]>([]);
+  // null = failed to load: don't show counts or an add form built on missing data
+  const [access, setAccess] = useState<AccessEntry[] | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [games, setGames] = useState<Game[]>([]);
-  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -76,10 +77,14 @@ export default function CourseDetailPage() {
     setCourseError('');
     setCourse(c.value);
     const failures: string[] = [];
-    if (a.status === 'fulfilled') setAccess(a.value); else failures.push(errorText(a.reason, 'Failed to load access'));
-    if (u.status === 'fulfilled') setUsers(u.value); else failures.push(errorText(u.reason, 'Failed to load users'));
-    if (g.status === 'fulfilled') setGames(g.value); else failures.push(errorText(g.reason, 'Failed to load games'));
-    if (r.status === 'fulfilled') setRoster(r.value); else failures.push(errorText(r.reason, 'Failed to load roster'));
+    if (a.status === 'fulfilled') setAccess(a.value);
+    else { setAccess(null); failures.push(errorText(a.reason, 'Failed to load access')); }
+    if (u.status === 'fulfilled') setUsers(u.value);
+    else { setUsers([]); failures.push(errorText(u.reason, 'Failed to load users')); }
+    if (g.status === 'fulfilled') setGames(g.value);
+    else { setGames([]); failures.push(errorText(g.reason, 'Failed to load games')); }
+    if (r.status === 'fulfilled') setRoster(r.value);
+    else { setRoster(null); failures.push(errorText(r.reason, 'Failed to load roster')); }
     setError(failures.join('; '));
   }
 
@@ -158,12 +163,12 @@ export default function CourseDetailPage() {
   }
 
   // Admins already have full access, so they're shown but not counted or re-roled.
-  const counted = access.filter((e) => e.user_role !== 'ADMIN');
+  const counted = (access ?? []).filter((e) => e.user_role !== 'ADMIN');
   const hostCount = counted.filter((e) => e.course_role === 'HOST').length;
   const playerCount = counted.filter((e) => e.course_role === 'PLAYER').length;
-  const activeRoster = roster.filter((r) => r.is_active).length;
+  const activeRoster = roster?.filter((r) => r.is_active).length ?? 0;
 
-  const listed = new Set(access.map((e) => e.user_id));
+  const listed = new Set((access ?? []).map((e) => e.user_id));
   const addable = users.filter((u) => u.role === 'USER' && !listed.has(u.id));
 
   const courseGames = games.filter((g) => g.course_id === id);
@@ -225,8 +230,9 @@ export default function CourseDetailPage() {
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {access.length === 0 && <p className="text-slate-500 text-sm">No one has been granted access yet.</p>}
-          {access.map((entry) => (
+          {access === null && <p className="text-slate-500 text-sm">Couldn&apos;t load who has access.</p>}
+          {access?.length === 0 && <p className="text-slate-500 text-sm">No one has been granted access yet.</p>}
+          {access?.map((entry) => (
             <div key={entry.user_id} className="flex items-center justify-between gap-3">
               <Link to={`/users/${entry.user_id}`} className="text-slate-200 text-sm hover:underline flex-1">
                 {userLabel(entry)}
@@ -253,7 +259,7 @@ export default function CourseDetailPage() {
           ))}
 
           <div className="pt-3 border-t border-slate-700 space-y-2">
-            {addable.length === 0 ? (
+            {access === null ? null : addable.length === 0 ? (
               <p className="text-slate-500 text-sm">No other users to add.</p>
             ) : (
               <div className="flex gap-2 flex-wrap">
@@ -297,6 +303,9 @@ export default function CourseDetailPage() {
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
+          {access === null || roster === null ? (
+            <p className="text-slate-500 text-sm">Counts unavailable: access or roster failed to load.</p>
+          ) : (
           <div className="text-sm text-slate-300 space-y-1">
             <p><span className="font-semibold text-slate-100">Run and edit:</span> {hostCount} host{hostCount === 1 ? '' : 's'}.</p>
             <p>
@@ -305,6 +314,7 @@ export default function CourseDetailPage() {
               hosts can play too.
             </p>
           </div>
+          )}
 
           {courseGames.length === 0 ? (
             <p className="text-slate-500 text-sm">No games in this course yet.</p>
@@ -352,7 +362,7 @@ export default function CourseDetailPage() {
             <div>
               <h3 className="font-semibold text-slate-100">Roster</h3>
               <p className="text-slate-400 text-sm mt-0.5">
-                {activeRoster} active / {roster.length} total roster entries
+                {roster === null ? "Couldn't load the roster." : `${activeRoster} active / ${roster.length} total roster entries`}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate(`/courses/${id}/roster`)}>

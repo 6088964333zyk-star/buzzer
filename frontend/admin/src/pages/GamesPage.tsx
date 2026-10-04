@@ -22,6 +22,7 @@ const selectClass = 'rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 t
 export default function GamesPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesLoaded, setCoursesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -43,18 +44,19 @@ export default function GamesPage() {
   const navigate = useNavigate();
 
   async function load() {
-    try {
-      const [gs, cs] = await Promise.all([
-        api.get<Game[]>('/admin/games'),
-        api.get<Course[]>('/admin/courses'),
-      ]);
-      setGames(gs);
-      setCourses(cs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load games');
-    } finally {
-      setLoading(false);
-    }
+    // Load independently: a courses failure shouldn't hide the games list.
+    const [gs, cs] = await Promise.allSettled([
+      api.get<Game[]>('/admin/games'),
+      api.get<Course[]>('/admin/courses'),
+    ]);
+    const failures: string[] = [];
+    if (gs.status === 'fulfilled') setGames(gs.value);
+    else failures.push(gs.reason instanceof Error ? gs.reason.message : 'Failed to load games');
+    if (cs.status === 'fulfilled') setCourses(cs.value);
+    else failures.push(cs.reason instanceof Error ? cs.reason.message : 'Failed to load courses');
+    setCoursesLoaded(cs.status === 'fulfilled');
+    if (failures.length > 0) setError(failures.join('; '));
+    setLoading(false);
   }
 
   useEffect(() => { void load(); }, []);
@@ -161,7 +163,7 @@ export default function GamesPage() {
   }
 
   const courseMap = Object.fromEntries(courses.map((c) => [c.id, c]));
-  const noCourses = !loading && courses.length === 0;
+  const noCourses = coursesLoaded && courses.length === 0;
   const courseOptions = courses.map((c) => (
     <option key={c.id} value={c.id}>{`${c.name} \u2014 ${c.semester}`}</option>
   ));
