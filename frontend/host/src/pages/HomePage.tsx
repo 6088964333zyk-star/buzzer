@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 
 interface Course { id: number; name: string; semester: string }
-interface Game { id: number; title: string }
+interface Game { id: number; title: string; course_id: number | null }
 interface ActiveSession {
   session_id: string;
   room_code: string;
@@ -36,9 +36,17 @@ export default function HomePage() {
       setGames(g);
       setActiveSessions(s);
       if (c.length === 1) setCourseId(c[0].id);
-      if (g.length === 1) setGameId(g[0].id);
     }).catch(() => setError('Failed to load courses or games. Are you still logged in?'));
   }, []);
+
+  // A course-owned game only runs in its own course (design D1). Course-less
+  // legacy games are only returned to admins, who may start them anywhere.
+  const courseGames = games.filter(g => g.course_id === courseId || g.course_id === null);
+
+  useEffect(() => {
+    if (courseGames.length === 1) setGameId(courseGames[0].id);
+    else if (!courseGames.some(g => g.id === gameId)) setGameId('');
+  }, [courseId, games]);
 
   async function deleteSession(sessionId: string) {
     try {
@@ -148,6 +156,16 @@ export default function HomePage() {
                 <option key={c.id} value={c.id}>{c.name} — {c.semester}</option>
               ))}
             </select>
+            {courseId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => navigate(`/manage/${courseId}/games`)}
+              >
+                Manage this course: games, roster, sessions →
+              </Button>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Quiz</label>
@@ -157,7 +175,7 @@ export default function HomePage() {
               className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select a quiz…</option>
-              {games.map(g => (
+              {courseGames.map(g => (
                 <option key={g.id} value={g.id}>{g.title}</option>
               ))}
             </select>

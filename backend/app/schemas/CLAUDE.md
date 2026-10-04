@@ -11,8 +11,10 @@ REST routers and the three frontends. Grouped by router.
   `GuestJoinRequest` (display name + email + room code).
 - `game.py` — host/player-facing shapes: `QuestionPublic` (a question **without**
   `answer_data`/`grading_type`), `RoomCreateRequest`/`Response`, `RoomInfoResponse`,
-  `ActiveSessionItem`, `MyCourseItem`/`MyGameItem` for the host's pickers, and internal
-  `ScoreResult`.
+  `ActiveSessionItem`, `MyCourseItem`/`MyGameItem` for the host's pickers, internal
+  `ScoreResult`, and the `/api/host` shapes: `HostGameCreate`/`HostGameUpdate` (no
+  `course_id` — the course comes from the URL and never changes), `HostRosterActivePatch`,
+  `HostSessionItem`.
 - `admin.py` — admin CRUD shapes: courses, roster (upload result, row patch, JSON import),
   games, questions (`QuestionCreate`/`QuestionUpdate`/`QuestionResponse`/`QuestionReorder`),
   local users, course/game access grants, and admin session listings.
@@ -25,10 +27,10 @@ what `config` and `answer_data` must contain — is defined only here, in
 file format and the API share one validator.
 
 ## Gotchas
-- **`QuestionUpdate` has no structural validator.** `QuestionCreate` checks that e.g.
-  `answer_points` matches the options length, but an update can change `type`, `config`, or
-  `answer_data` into an inconsistent combination and it is saved as-is. Any new question type
-  (T7) must close this gap, not copy it.
+- **`QuestionUpdate` has no structural validator of its own.** The check happens in
+  `services/question_service.update`, which merges the update onto the stored question and
+  re-runs `QuestionCreate` (422 on failure). New question types (T7) only need validation in
+  `QuestionCreate.validate_structure`.
 - The allowed question types are a regex **duplicated** in `QuestionCreate.type` and
   `QuestionUpdate.type`. Adding a type means editing both, plus the validator.
 - Key naming is inconsistent by type and must be matched exactly: multiple_choice /

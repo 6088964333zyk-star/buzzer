@@ -13,7 +13,7 @@ from ..common.exceptions import NotFoundError
 from ..config import settings
 from ..database import get_db
 from ..models.course import Course, UserCourseAccess
-from ..models.game import Game, Question, UserGameAccess
+from ..models.game import Game, Question
 from ..models.session import GameSession
 from ..models.user import User
 from ..redis_client import get_redis
@@ -77,7 +77,7 @@ async def my_games(
 ) -> list[Game]:
     """
     Returns games the authenticated user can run.
-    ADMIN sees all games; USER sees games from user_game_access.
+    ADMIN sees all games; USER sees games owned by courses where they are HOST.
     """
     if user.role == "ADMIN":
         result = await db.execute(select(Game).order_by(Game.title))
@@ -85,8 +85,11 @@ async def my_games(
 
     result = await db.execute(
         select(Game)
-        .join(UserGameAccess, UserGameAccess.game_id == Game.id)
-        .where(UserGameAccess.user_id == user.id)
+        .join(UserCourseAccess, UserCourseAccess.course_id == Game.course_id)
+        .where(
+            UserCourseAccess.user_id == user.id,
+            UserCourseAccess.role == "HOST",
+        )
         .order_by(Game.title)
     )
     return result.scalars().all()
@@ -332,15 +335,8 @@ async def export_session_scores(
     user: Annotated[User, Depends(require_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> StreamingResponse:
-    """Download session scores as a CSV. Accessible by the session host or an admin."""
-    session = await db.get(GameSession, session_id)
-    if not session:
-        raise NotFoundError(f"Session {session_id} not found")
-
-    if user.role != "ADMIN" and session.host_user_id != user.id:
-        from ..common.exceptions import ForbiddenError
-
-        raise ForbiddenError("Only the session host can export scores")
+    """Download session scores as a CSV. Any HOST of the session's course, or admin."""
+    await game_service.assert_host_can_view_session(db, user, session_id)
 
     from ..services.export_service import build_session_csv
 

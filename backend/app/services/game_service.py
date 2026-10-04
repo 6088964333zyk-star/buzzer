@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..common.exceptions import ConflictError, ForbiddenError, NotFoundError
 from ..models.course import CourseRoster, UserCourseAccess
-from ..models.game import Game, Question, UserGameAccess
+from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
 from ..models.user import User
 from ..schemas.game import ScoreResult
@@ -67,22 +67,39 @@ async def assert_host_can_use_course(
         raise ForbiddenError("You do not have HOST access to this course")
 
 
-async def assert_host_can_use_game(db: AsyncSession, user: User, game_id: int) -> None:
-    """Admin can use any game; USER must have an entry in user_game_access."""
-    if user.role == "ADMIN":
-        game = await db.get(Game, game_id)
-        if not game:
-            raise NotFoundError(f"Game {game_id} not found")
-        return
+async def assert_host_can_manage_game(
+    db: AsyncSession, user: User, game_id: int
+) -> Game:
+    """Admin can use any game; USER must be HOST of the game's course.
 
-    result = await db.execute(
-        select(UserGameAccess).where(
-            UserGameAccess.user_id == user.id,
-            UserGameAccess.game_id == game_id,
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise ForbiddenError("You do not have access to this game")
+    Games without a course (legacy, pre-migration 004) are admin-only.
+    UserGameAccess no longer grants host access (docs/design-t4-host.md D1).
+    """
+    game = await db.get(Game, game_id)
+    if not game:
+        raise NotFoundError(f"Game {game_id} not found")
+    if user.role == "ADMIN":
+        return game
+    if game.course_id is None:
+        raise ForbiddenError("This game is not assigned to a course")
+    await assert_host_can_use_course(db, user, game.course_id)
+    return game
+
+
+async def assert_host_can_use_game(db: AsyncSession, user: User, game_id: int) -> None:
+    """Kept for create_room; same rule as assert_host_can_manage_game."""
+    await assert_host_can_manage_game(db, user, game_id)
+
+
+async def assert_host_can_view_session(
+    db: AsyncSession, user: User, session_id: str
+) -> GameSession:
+    """Admin, or any HOST of the session's course, may view its results (D3)."""
+    session = await db.get(GameSession, session_id)
+    if not session:
+        raise NotFoundError(f"Session {session_id} not found")
+    await assert_host_can_use_course(db, user, session.course_id)
+    return session
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +118,13 @@ async def create_room(
     # Validate access
     await assert_host_can_use_course(db, host, course_id)
     await assert_host_can_use_game(db, host, game_id)
+
+    # A course-owned game runs only in its own course, even for ADMIN; a legacy
+    # course-less game can only be started by ADMIN (assert_host_can_use_game
+    # already rejects non-admins), in any course.
+    game = await db.get(Game, game_id)
+    if game.course_id is not None and game.course_id != course_id:
+        raise ForbiddenError("This game belongs to a different course")
 
     # Enforce global room limit — count only LOBBY/IN_PROGRESS rooms.
     # COMPLETED/ABANDONED rooms may linger in Redis briefly for reconnection
