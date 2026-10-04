@@ -20,7 +20,9 @@ pages render the phase the server has put this player in.
 - `FeedbackPage.tsx` — "Answer locked in!" waiting screen after `answer_received`; deliberately
   shows no correctness.
 - `ResultsPage.tsx` — After `question_results`: correct/incorrect (or participation), points for
-  this question, running score, rank, the player's own answer and the correct answer.
+  this question, running score, rank, and the player's own answer. The correct answer is shown
+  only for fill-in-the-blank (`fitbAccepted`); MC/TF/multi-select show just correct/incorrect
+  and points.
 - `GameOverPage.tsx` — Final score and rank, plus a per-question review card (prompt, your
   answer, correct answer, points, time).
 

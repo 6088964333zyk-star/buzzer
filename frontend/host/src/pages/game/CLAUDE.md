@@ -7,7 +7,8 @@ the Socket.io connection; four child pages render whichever phase the server say
 ## Contents
 - `GameLayout.tsx` — Route element for `/game/:code/*`. Opens the socket (JWT in `auth`), emits
   `join_room` as `HOST`, subscribes to every server event, holds all game state, and navigates
-  between child routes on `sync_state` / `new_question` / `question_results` / `game_over`.
+  between child routes on `sync_state` / `new_question` / `question_results` / `game_over`;
+  `game_abandoned` navigates back to `/home`.
   Exposes state plus `emitAdvance` / `emitLockQuestion` through `GameContext` (`useGame()`).
   Also renders the persistent QR code + room-code panel in the bottom-right corner.
 - `LobbyPage.tsx` — Large QR code, room code, live player count, auto-advance toggle, and the

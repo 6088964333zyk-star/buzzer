@@ -8,8 +8,9 @@ All player routes on the phone: entering a room code, choosing how to identify y
 - `JoinPage.tsx` — Room-code entry (prefilled from `?code=` when arriving via the host's QR code).
   Checks the room with the public `GET /api/game/rooms/:code/ping`, then goes to `/name/:code`.
 - `NamePage.tsx` — Pick identity for a room: **guest** (display name + email →
-  `POST /api/auth/guest`, remembered in `localStorage.playerName` / `playerEmail`) or **local
-  account** (`POST /api/auth/login`). If a valid token already exists, offers to continue with it.
+  `POST /api/auth/guest`, remembered in `localStorage.playerName` / `playerEmail`) or **Sign In**,
+  which defaults to UW NetID SSO (link to `/api/auth/oauth2-callback`) with a **local account**
+  fallback (`POST /api/auth/login`). If a valid token already exists, offers to continue with it.
   Then → `/game/:code/lobby`.
 - `LoginPage.tsx` — Not a login form. Landing page for the OAuth2 redirect: exchanges the
   `#oauth2_data=` temp token at `POST /api/auth/exchange-temp`, then returns to `/name/:code`
