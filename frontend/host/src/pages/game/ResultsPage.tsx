@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import type { AnswerReveal } from '../../types/game';
+import { MapCanvas } from '../../components/MapCanvas';
+import { distributionDots } from '../../lib/mapPin';
 
 const RESULTS_DISPLAY_SECONDS = 10;
 
@@ -237,6 +239,11 @@ export default function ResultsPage() {
   }, [autoAdvance, questionResults, emitAdvance]);
 
   const isFitb = currentQuestion?.type === 'fill_in_the_blank';
+  const mapReveal =
+    questionResults && 'type' in questionResults.answerReveal &&
+    questionResults.answerReveal.type === 'map_pin'
+      ? questionResults.answerReveal
+      : null;
 
   const bars =
     !isFitb && questionResults
@@ -259,7 +266,20 @@ export default function ResultsPage() {
         </p>
       )}
 
-      {questionResults && isFitb ? (
+      {questionResults && mapReveal ? (
+        <div className="w-full max-w-4xl space-y-2">
+          <MapCanvas
+            aspectRatio={mapReveal.aspectRatio}
+            target={mapReveal.target}
+            fullRadius={mapReveal.fullRadius}
+            zeroRadius={mapReveal.zeroRadius}
+            dots={distributionDots(questionResults.answerDistribution)}
+          />
+          <p className="text-slate-400 text-center">
+            {questionResults.totalAnswered} / {questionResults.totalPlayers} guessed · green pin is the answer
+          </p>
+        </div>
+      ) : questionResults && isFitb ? (
         <WordCloud
           distribution={questionResults.answerDistribution}
           answerReveal={questionResults.answerReveal}

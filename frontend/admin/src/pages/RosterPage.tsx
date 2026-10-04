@@ -6,6 +6,9 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 
+// Mirrors roster_service.MAX_ROWS; the server's 422 is the real check.
+const MAX_ROSTER_ROWS = 1000;
+
 interface RosterEntry {
   id: number;
   netid: string;
@@ -218,6 +221,10 @@ export default function RosterPage() {
   async function handleImport() {
     const rows = getMappedRows();
     if (rows.length === 0) { setError('No valid rows to import with the current mapping.'); return; }
+    if (rows.length > MAX_ROSTER_ROWS) {
+      setError(`Roster has ${rows.length} rows; the limit is ${MAX_ROSTER_ROWS}. Nothing was changed.`);
+      return;
+    }
     setImporting(true);
     setError('');
     try {
@@ -292,10 +299,10 @@ export default function RosterPage() {
   return (
     <div className="p-8 max-w-5xl">
       <button
-        onClick={() => navigate('/courses')}
+        onClick={() => navigate(`/courses/${courseId}`)}
         className="flex items-center gap-2 text-slate-400 hover:text-slate-100 text-sm mb-6"
       >
-        <ArrowLeft size={14} /> Back to Courses
+        <ArrowLeft size={14} /> Back to course
       </button>
 
       <div className="flex items-center justify-between mb-6">

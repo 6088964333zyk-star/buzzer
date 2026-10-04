@@ -7,6 +7,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..common.exceptions import UnprocessableError
 from ..models.course import CourseRoster
 from ..schemas.admin import RosterUploadResult
 
@@ -17,6 +18,15 @@ STUDENT_COL = "student"  # "Last, First [Middle]"
 SIS_LOGIN_COL = "sis login id"  # "NETID@WISC.EDU"
 
 MAX_ROWS = 1000
+
+
+def _assert_within_row_limit(data_rows: int) -> None:
+    """Reject oversize uploads before any write. Truncating instead would
+    deactivate everyone past the limit (docs/design-t4-host.md D4)."""
+    if data_rows > MAX_ROWS:
+        raise UnprocessableError(
+            f"Roster has {data_rows} rows; the limit is {MAX_ROWS}. Nothing was changed."
+        )
 
 
 def _is_metadata_row(row: dict[str, str]) -> bool:
@@ -101,7 +111,16 @@ async def process_roster_csv(
     seen_netids: set[str] = set()
     csv_row = 1  # row 1 = header; incremented before each data row
 
-    for raw_row in reader:
+    raw_rows = list(reader)
+    data_rows = sum(
+        1
+        for r in raw_rows
+        if not _is_metadata_row(r)
+        and (r.get(student_header, "").strip() or r.get(sis_header, "").strip())
+    )
+    _assert_within_row_limit(data_rows)
+
+    for raw_row in raw_rows:
         csv_row += 1
 
         if _is_metadata_row(raw_row):
@@ -130,12 +149,6 @@ async def process_roster_csv(
         if not netid:
             errors.append(f"Row {csv_row}: could not extract netid from '{sis_raw}'")
             continue
-
-        if len(seen_netids) >= MAX_ROWS:
-            errors.append(
-                f"Reached {MAX_ROWS}-row limit; remaining rows were not processed."
-            )
-            break
 
         seen_netids.add(netid)
 
@@ -207,6 +220,8 @@ async def process_roster_rows(
     by the frontend column-mapping wizard).  Upserts into course_rosters and
     deactivates entries whose netid was absent from this upload.
     """
+    _assert_within_row_limit(len(rows))
+
     imported = updated = 0
     errors: list[str] = []
     seen_netids: set[str] = set()
@@ -219,12 +234,6 @@ async def process_roster_rows(
         if not netid or not full_name or not email:
             errors.append(f"Row {i}: missing required field(s) — skipped")
             continue
-
-        if len(seen_netids) >= MAX_ROWS:
-            errors.append(
-                f"Reached {MAX_ROWS}-row limit; remaining rows were not processed."
-            )
-            break
 
         seen_netids.add(netid)
 

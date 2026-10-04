@@ -13,10 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..common.exceptions import ConflictError, ForbiddenError, NotFoundError
 from ..models.course import CourseRoster, UserCourseAccess
-from ..models.game import Game, Question, UserGameAccess
+from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
 from ..models.user import User
 from ..schemas.game import ScoreResult
+from . import map_pin
 from . import state_service as state
 
 logger = structlog.get_logger()
@@ -67,22 +68,39 @@ async def assert_host_can_use_course(
         raise ForbiddenError("You do not have HOST access to this course")
 
 
-async def assert_host_can_use_game(db: AsyncSession, user: User, game_id: int) -> None:
-    """Admin can use any game; USER must have an entry in user_game_access."""
-    if user.role == "ADMIN":
-        game = await db.get(Game, game_id)
-        if not game:
-            raise NotFoundError(f"Game {game_id} not found")
-        return
+async def assert_host_can_manage_game(
+    db: AsyncSession, user: User, game_id: int
+) -> Game:
+    """Admin can use any game; USER must be HOST of the game's course.
 
-    result = await db.execute(
-        select(UserGameAccess).where(
-            UserGameAccess.user_id == user.id,
-            UserGameAccess.game_id == game_id,
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise ForbiddenError("You do not have access to this game")
+    Games without a course (legacy, pre-migration 004) are admin-only.
+    UserGameAccess no longer grants host access (docs/design-t4-host.md D1).
+    """
+    game = await db.get(Game, game_id)
+    if not game:
+        raise NotFoundError(f"Game {game_id} not found")
+    if user.role == "ADMIN":
+        return game
+    if game.course_id is None:
+        raise ForbiddenError("This game is not assigned to a course")
+    await assert_host_can_use_course(db, user, game.course_id)
+    return game
+
+
+async def assert_host_can_use_game(db: AsyncSession, user: User, game_id: int) -> None:
+    """Kept for create_room; same rule as assert_host_can_manage_game."""
+    await assert_host_can_manage_game(db, user, game_id)
+
+
+async def assert_host_can_view_session(
+    db: AsyncSession, user: User, session_id: str
+) -> GameSession:
+    """Admin, or any HOST of the session's course, may view its results (D3)."""
+    session = await db.get(GameSession, session_id)
+    if not session:
+        raise NotFoundError(f"Session {session_id} not found")
+    await assert_host_can_use_course(db, user, session.course_id)
+    return session
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +119,13 @@ async def create_room(
     # Validate access
     await assert_host_can_use_course(db, host, course_id)
     await assert_host_can_use_game(db, host, game_id)
+
+    # A course-owned game runs only in its own course, even for ADMIN; a legacy
+    # course-less game can only be started by ADMIN (assert_host_can_use_game
+    # already rejects non-admins), in any course.
+    game = await db.get(Game, game_id)
+    if game.course_id is not None and game.course_id != course_id:
+        raise ForbiddenError("This game belongs to a different course")
 
     # Enforce global room limit — count only LOBBY/IN_PROGRESS rooms.
     # COMPLETED/ABANDONED rooms may linger in Redis briefly for reconnection
@@ -300,6 +325,17 @@ def calculate_score(question: Question, answer_data: dict) -> ScoreResult:
     if not answer_data:
         return ScoreResult(points_awarded=0, is_correct=False)
 
+    if question.type == "map_pin":
+        point = answer_data.get("point")
+        if not map_pin.is_unit_point(point):
+            return ScoreResult(points_awarded=0, is_correct=False)
+        if question.grading_type == "COMPLETENESS":
+            return ScoreResult(points_awarded=question.points_value, is_correct=True)
+        points, correct = map_pin.score_map_pin(
+            point, question.answer_data, question.config, question.points_value
+        )
+        return ScoreResult(points_awarded=points, is_correct=correct)
+
     if question.grading_type == "COMPLETENESS":
         return ScoreResult(points_awarded=question.points_value, is_correct=True)
 
@@ -414,6 +450,10 @@ async def record_answer(
         text = " ".join((answer_data.get("text") or "").lower().split())
         if text:
             dist_key = text
+    elif question.type == "map_pin":
+        point = answer_data.get("point")
+        if map_pin.is_unit_point(point):
+            dist_key = map_pin.map_pin_cell(point)
     elif question.type == "multi_select":
         indices = answer_data.get("selectedIndices")
         if isinstance(indices, list):
@@ -489,8 +529,11 @@ async def get_player_question_summary(
         q_ans = r.q_answer_data or {}
         pts_val = r.points_value
 
-        if grading_type == "COMPLETENESS":
-            reveal: dict = {"type": "completeness"}
+        # map_pin always reveals its target, even for COMPLETENESS (design Step 3).
+        if q_type == "map_pin":
+            reveal: dict = map_pin.reveal(q_ans, r.config or {})
+        elif grading_type == "COMPLETENESS":
+            reveal = {"type": "completeness"}
         elif q_type == "multiple_choice":
             pts = q_ans.get("answer_points", [])
             correct_indices = [i for i, p in enumerate(pts) if p >= pts_val]
@@ -599,8 +642,10 @@ async def get_host_question_summary(
         pts_val = q["points_value"]
         grading_type = q["grading_type"]
 
-        if grading_type == "COMPLETENESS":
-            reveal: dict = {"type": "completeness"}
+        if q_type == "map_pin":
+            reveal: dict = map_pin.reveal(q_ans, q["config"])
+        elif grading_type == "COMPLETENESS":
+            reveal = {"type": "completeness"}
         elif q_type == "multiple_choice":
             pts_list = q_ans.get("answer_points", [])
             reveal = {
@@ -655,6 +700,11 @@ async def get_host_question_summary(
                             if isinstance(idx, int):
                                 k = str(idx)
                                 dist[k] = dist.get(k, 0) + 1
+                elif q_type == "map_pin":
+                    point = ans.get("point")
+                    if map_pin.is_unit_point(point):
+                        k = map_pin.map_pin_cell(point)
+                        dist[k] = dist.get(k, 0) + 1
             if s["is_correct"]:
                 correct_count += 1
             if s["answer_time_ms"] is not None:

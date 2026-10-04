@@ -1,5 +1,31 @@
 const BASE = '/api';
 
+/**
+ * Backend errors are {message} (BuzzerError), a string {detail} (HTTPException), or
+ * a {detail} array (request validation). Extends the host app's errorFrom with the
+ * array case, e.g. "title: Field required".
+ */
+async function toError(res: Response): Promise<Error> {
+  const fallback = `HTTP ${res.status}`;
+  let body: { message?: unknown; detail?: unknown };
+  try {
+    body = await res.json();
+  } catch {
+    return new Error(fallback); // not JSON, e.g. an nginx 502 page
+  }
+  if (typeof body?.message === 'string') return new Error(body.message);
+  if (typeof body?.detail === 'string') return new Error(body.detail);
+  if (Array.isArray(body?.detail)) {
+    const parts = body.detail.map((item: { loc?: unknown[]; msg?: unknown }) => {
+      const msg = String(item?.msg ?? 'Invalid value');
+      const field = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : undefined;
+      return field !== undefined ? `${field}: ${msg}` : msg;
+    });
+    if (parts.length > 0) return new Error(parts.join('; '));
+  }
+  return new Error(fallback);
+}
+
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const res = await fetch(`${BASE}${path}`, {
@@ -11,8 +37,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
     },
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail ?? `HTTP ${res.status}`);
+    throw await toError(res);
   }
   const text = await res.text();
   return text ? (JSON.parse(text) as T) : ({} as T);
@@ -25,8 +50,7 @@ async function downloadFetch(path: string): Promise<void> {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { detail?: string }).detail ?? `HTTP ${res.status}`);
+    throw await toError(res);
   }
   const disposition = res.headers.get('Content-Disposition') ?? '';
   const match = disposition.match(/filename="([^"]+)"/);
@@ -67,8 +91,7 @@ export const api = {
       body: form,
     }).then(async (res) => {
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { detail?: string }).detail ?? `HTTP ${res.status}`);
+        throw await toError(res);
       }
       const text = await res.text();
       return (text ? JSON.parse(text) : {}) as T;

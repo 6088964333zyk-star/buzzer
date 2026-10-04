@@ -2,13 +2,22 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import type { PlayerAnswerReveal, QuestionSummaryItem } from '../../types/game';
+import { formatPct, mapDistance } from '../../lib/mapPin';
 
 function describePlayerAnswer(
-  playerAnswer: { selectedIndex?: number; selectedValue?: boolean; text?: string; selectedIndices?: number[] } | null,
+  playerAnswer: QuestionSummaryItem['playerAnswer'],
   type: string,
   options: string[] | undefined,
+  reveal?: PlayerAnswerReveal,
 ): string {
   if (!playerAnswer) return 'No answer';
+  if (type === 'map_pin') {
+    const p = playerAnswer.point;
+    if (!p) return 'No pin';
+    return reveal?.type === 'map_pin'
+      ? `${formatPct(mapDistance(p, reveal.target, reveal.aspectRatio))} of the map away`
+      : 'Pin placed';
+  }
   if (type === 'multiple_choice') {
     const idx = playerAnswer.selectedIndex;
     if (typeof idx === 'number' && options && options[idx] !== undefined) {
@@ -49,6 +58,9 @@ function describeCorrectAnswer(
     const label = answerReveal.acceptedAnswers.join(' / ');
     return answerReveal.editDistance > 0 ? `${label} (±${answerReveal.editDistance})` : label;
   }
+  if (answerReveal.type === 'map_pin') {
+    return 'Green pin on the host screen';
+  }
   if (answerReveal.type === 'multi_select') {
     const correct = answerReveal.answerPoints
       .map((p, i) => ({ p, i }))
@@ -61,12 +73,17 @@ function describeCorrectAnswer(
 
 function QuestionRow({ item, index }: { item: QuestionSummaryItem; index: number }) {
   const options = item.config.options;
-  const isCompleteness = item.answerReveal.type === 'completeness';
+  // map_pin always reveals its target, so check gradingType for participation.
+  const isCompleteness =
+    item.answerReveal.type === 'completeness' || item.gradingType === 'COMPLETENESS';
   const noAnswer = !item.playerAnswer;
   const isCorrect = !isCompleteness && !noAnswer && item.pointsAwarded > 0;
-  const showCorrectAnswer = !isCompleteness && !isCorrect;
+  // A map guess is a distance, not right/wrong; the distance label says it all.
+  const showCorrectAnswer = !isCompleteness && !isCorrect && item.type !== 'map_pin';
 
-  const playerAnswerLabel = describePlayerAnswer(item.playerAnswer, item.type, options);
+  const playerAnswerLabel = describePlayerAnswer(
+    item.playerAnswer, item.type, options, item.answerReveal,
+  );
   const correctAnswerLabel = !isCompleteness
     ? describeCorrectAnswer(item.answerReveal, options)
     : '';

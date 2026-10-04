@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import type { AnswerReveal, HostQuestionSummaryItem } from '../../types/game';
+import { MapCanvas } from '../../components/MapCanvas';
+import { distributionDots } from '../../lib/mapPin';
 
 const TARGET_BUCKETS = 8;
 
@@ -84,6 +86,7 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
     true_false: 'True / False',
     fill_in_the_blank: 'Fill in the Blank',
     multi_select: 'Multi-Select',
+    map_pin: 'Map Pin',
   };
 
   const answeredPct = totalPlayers > 0 ? Math.round((totalAnswered / totalPlayers) * 100) : 0;
@@ -138,6 +141,17 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
 
       {/* Distribution */}
       <div className="space-y-2">
+        {/* Map questions get a small map instead of dozens of grid-key bars (Goldfish E). */}
+        {type === 'map_pin' && reveal.type === 'map_pin' && (
+          <div className="max-w-md">
+            <MapCanvas
+              aspectRatio={reveal.aspectRatio}
+              target={reveal.target}
+              fullRadius={reveal.fullRadius}
+              dots={distributionDots(answerDistribution)}
+            />
+          </div>
+        )}
         {(type === 'multiple_choice' || type === 'multi_select') && (config.options ?? []).map((opt, i) => {
           const count = answerDistribution[String(i)] ?? 0;
           const correct = isCorrectIndex(i);

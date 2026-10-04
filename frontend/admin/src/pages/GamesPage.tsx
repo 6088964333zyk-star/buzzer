@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, List, Upload, Trash2, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -11,17 +11,28 @@ interface Game {
   title: string;
   description: string;
   max_players: number;
+  course_id: number | null;
   created_at: string;
 }
 
+interface Course { id: number; name: string; semester: string }
+
+const selectClass = 'rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 text-sm';
+
 export default function GamesPage() {
   const [games, setGames] = useState<Game[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesLoaded, setCoursesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [maxPlayers, setMaxPlayers] = useState('150');
+  const [courseId, setCourseId] = useState('');
+  const [importCourseId, setImportCourseId] = useState('');
+  // Per-row course choice for games that don't have one yet
+  const [assignChoice, setAssignChoice] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
@@ -33,14 +44,19 @@ export default function GamesPage() {
   const navigate = useNavigate();
 
   async function load() {
-    try {
-      const data = await api.get<Game[]>('/admin/games');
-      setGames(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load games');
-    } finally {
-      setLoading(false);
-    }
+    // Load independently: a courses failure shouldn't hide the games list.
+    const [gs, cs] = await Promise.allSettled([
+      api.get<Game[]>('/admin/games'),
+      api.get<Course[]>('/admin/courses'),
+    ]);
+    const failures: string[] = [];
+    if (gs.status === 'fulfilled') setGames(gs.value);
+    else failures.push(gs.reason instanceof Error ? gs.reason.message : 'Failed to load games');
+    if (cs.status === 'fulfilled') setCourses(cs.value);
+    else failures.push(cs.reason instanceof Error ? cs.reason.message : 'Failed to load courses');
+    setCoursesLoaded(cs.status === 'fulfilled');
+    if (failures.length > 0) setError(failures.join('; '));
+    setLoading(false);
   }
 
   useEffect(() => { void load(); }, []);
@@ -54,8 +70,9 @@ export default function GamesPage() {
         title,
         description,
         max_players: Number(maxPlayers),
+        course_id: Number(courseId),
       });
-      setTitle(''); setDescription(''); setMaxPlayers('150');
+      setTitle(''); setDescription(''); setMaxPlayers('150'); setCourseId('');
       setShowForm(false);
       await load();
     } catch (err) {
@@ -94,13 +111,23 @@ export default function GamesPage() {
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !importCourseId) return;
     setImporting(true);
     setError('');
     try {
       const form = new FormData();
       form.append('file', file);
       const result = await api.postForm<{ game_id: number }>('/admin/games/import', form);
+      // Import has no course parameter; assign it with the set-once PUT. The chosen
+      // course always wins over any course_id inside the file (design A6).
+      try {
+        await api.put(`/admin/games/${result.game_id}`, { course_id: Number(importCourseId) });
+      } catch (err) {
+        setError(`Imported, but assigning the course failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+        await load();
+        return;
+      }
+      setImportCourseId('');
       await load();
       navigate(`/games/${result.game_id}/questions`);
     } catch (err) {
@@ -108,6 +135,20 @@ export default function GamesPage() {
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function assignCourse(g: Game) {
+    const chosen = courses.find((c) => String(c.id) === assignChoice[g.id]);
+    if (!chosen) return;
+    if (!confirm(`Assign '${g.title}' to ${chosen.name}? A game's course can't be changed later.`)) return;
+    setError('');
+    try {
+      await api.put(`/admin/games/${g.id}`, { course_id: chosen.id });
+      setAssignChoice((prev) => { const next = { ...prev }; delete next[g.id]; return next; });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign course');
     }
   }
 
@@ -121,21 +162,49 @@ export default function GamesPage() {
     }
   }
 
+  const courseMap = Object.fromEntries(courses.map((c) => [c.id, c]));
+  const noCourses = coursesLoaded && courses.length === 0;
+  const courseOptions = courses.map((c) => (
+    <option key={c.id} value={c.id}>{`${c.name} \u2014 ${c.semester}`}</option>
+  ));
+
   return (
     <div className="p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-slate-100">Games</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+          <select
+            className={selectClass}
+            value={importCourseId}
+            onChange={(e) => setImportCourseId(e.target.value)}
+            disabled={noCourses}
+            aria-label="Course for imported game"
+          >
+            <option value="">Import into course…</option>
+            {courseOptions}
+          </select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileRef.current?.click()}
+            disabled={importing || !importCourseId}
+          >
             <Upload size={14} className="mr-1" />
             {importing ? 'Importing\u2026' : 'Import JSON'}
           </Button>
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Button size="sm" onClick={() => setShowForm(!showForm)} disabled={noCourses}>
             <Plus size={16} className="mr-1" /> New Game
           </Button>
         </div>
       </div>
+
+      {noCourses && (
+        <p className="text-slate-400 mb-4 text-sm">
+          Every game belongs to a course.{' '}
+          <Link to="/courses" className="text-indigo-300 hover:underline">Create a course first</Link>.
+        </p>
+      )}
 
       {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
 
@@ -145,6 +214,20 @@ export default function GamesPage() {
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-3">
               <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Course <span className="text-slate-500">(can&apos;t be changed later)</span>
+                </label>
+                <select
+                  className={`${selectClass} w-full`}
+                  value={courseId}
+                  onChange={(e) => setCourseId(e.target.value)}
+                  required
+                >
+                  <option value="">Choose a course…</option>
+                  {courseOptions}
+                </select>
+              </div>
               <textarea
                 placeholder="Description (optional)"
                 value={description}
@@ -177,6 +260,12 @@ export default function GamesPage() {
           <CardContent>
             <form onSubmit={handleEdit} className="space-y-3">
               <Input placeholder="Title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+              <p className="text-slate-400 text-xs">
+                Course:{' '}
+                {editingGame.course_id === null
+                  ? 'none (assign one from the games list)'
+                  : courseMap[editingGame.course_id]?.name ?? `Course ${editingGame.course_id}`}
+              </p>
               <textarea
                 placeholder="Description (optional)"
                 value={editDescription}
@@ -215,6 +304,38 @@ export default function GamesPage() {
                 <p className="font-semibold text-slate-100">{g.title}</p>
                 {g.description && <p className="text-slate-400 text-sm mt-0.5 line-clamp-1">{g.description}</p>}
                 <p className="text-slate-500 text-xs mt-0.5">Max {g.max_players} players</p>
+                {g.course_id !== null ? (
+                  <p className="text-xs mt-1">
+                    <Link to={`/courses/${g.course_id}`} className="text-indigo-300 hover:underline">
+                      {courseMap[g.course_id]?.name ?? `Course ${g.course_id}`}
+                    </Link>
+                  </p>
+                ) : (
+                  <div className="flex gap-2 items-center mt-2">
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-amber-900/50 text-amber-300">No course</span>
+                    {courses.length > 0 && (
+                      <>
+                        <select
+                          className={`${selectClass} py-1 text-xs`}
+                          value={assignChoice[g.id] ?? ''}
+                          onChange={(e) => setAssignChoice((prev) => ({ ...prev, [g.id]: e.target.value }))}
+                          aria-label={`Course for ${g.title}`}
+                        >
+                          <option value="">Assign to…</option>
+                          {courseOptions}
+                        </select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void assignCourse(g)}
+                          disabled={!assignChoice[g.id]}
+                        >
+                          Assign
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button

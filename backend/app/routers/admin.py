@@ -21,6 +21,7 @@ from ..models.session import GameSession, SessionScore
 from ..models.user import User
 from ..schemas.admin import (
     AdminSessionItem,
+    CourseAccessEntry,
     CourseAccessGrant,
     CourseCreate,
     CourseResponse,
@@ -42,6 +43,8 @@ from ..schemas.admin import (
     UserUpdate,
     UserWithAccessResponse,
 )
+from ..redis_client import get_redis
+from ..services import question_service
 from ..services.auth_service import hash_password
 from ..services.export_service import build_canvas_csv, build_session_csv
 from ..services.report_service import build_session_report
@@ -52,7 +55,7 @@ _SUPPORTED_IMPORT_VERSION = 1
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = structlog.get_logger()
 
-_PROMPT_TAGS = ["b", "i", "br", "u"]
+_PROMPT_TAGS = question_service.PROMPT_TAGS
 
 # ---------------------------------------------------------------------------
 # Courses
@@ -112,6 +115,42 @@ async def update_course(
     if body.semester is not None:
         course.semester = body.semester
     return course
+
+
+@router.get("/courses/{course_id}/access", response_model=list[CourseAccessEntry])
+async def list_course_access(
+    course_id: int,
+    _: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[dict]:
+    """Users with a HOST or PLAYER grant on this course, hosts first."""
+    if not await db.get(Course, course_id):
+        raise NotFoundError(f"Course {course_id} not found")
+
+    result = await db.execute(
+        select(UserCourseAccess, User)
+        .join(User, User.id == UserCourseAccess.user_id)
+        .where(UserCourseAccess.course_id == course_id)
+    )
+    entries = [
+        {
+            "user_id": user.id,
+            "username": user.username,
+            "netid": user.netid,
+            "display_name": user.display_name,
+            "user_role": user.role,
+            "course_role": access.role,
+        }
+        for access, user in result.all()
+    ]
+    entries.sort(
+        key=lambda e: (
+            0 if e["course_role"] == "HOST" else 1,
+            (e["display_name"] or e["username"] or e["netid"] or "").lower(),
+            e["user_id"],
+        )
+    )
+    return entries
 
 
 # ---------------------------------------------------------------------------
@@ -219,8 +258,13 @@ async def create_game(
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Game:
+    if body.course_id is not None and not await db.get(Course, body.course_id):
+        raise NotFoundError(f"Course {body.course_id} not found")
     game = Game(
-        title=body.title, description=body.description, max_players=body.max_players
+        title=body.title,
+        description=body.description,
+        max_players=body.max_players,
+        course_id=body.course_id,
     )
     db.add(game)
     await db.flush()
@@ -258,6 +302,14 @@ async def update_game(
         game.description = body.description
     if body.max_players is not None:
         game.max_players = body.max_players
+    # A game's course is set once (design D1): it may be assigned while NULL,
+    # but never moved, so past sessions can't end up in another course.
+    if body.course_id is not None and body.course_id != game.course_id:
+        if game.course_id is not None:
+            raise ConflictError("A game's course cannot be changed once set")
+        if not await db.get(Course, body.course_id):
+            raise NotFoundError(f"Course {body.course_id} not found")
+        game.course_id = body.course_id
     return game
 
 
@@ -316,45 +368,9 @@ async def create_question(
     body: QuestionCreate,
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    redis=Depends(get_redis),
 ) -> Question:
-    game = await db.get(Game, game_id)
-    if not game:
-        raise NotFoundError(f"Game {game_id} not found")
-
-    # Sanitize prompt HTML server-side
-    clean_prompt = bleach.clean(
-        body.prompt, tags=_PROMPT_TAGS, attributes={}, strip=True
-    )
-
-    # Auto-assign order_index if not specified
-    if body.order_index is None:
-        result = await db.execute(
-            select(Question.order_index)
-            .where(Question.game_id == game_id)
-            .order_by(Question.order_index.desc())
-            .limit(1)
-        )
-        max_idx = result.scalar_one_or_none()
-        order_index = (max_idx + 1) if max_idx is not None else 0
-    else:
-        order_index = body.order_index
-
-    question = Question(
-        game_id=game_id,
-        type=body.type,
-        grading_type=body.grading_type,
-        prompt=clean_prompt,
-        config=body.config,
-        answer_data=body.answer_data,
-        time_limit_seconds=body.time_limit_seconds,
-        points_value=body.points_value,
-        order_index=order_index,
-    )
-    db.add(question)
-    await db.flush()
-    await db.refresh(question)
-    await db.commit()
-    return question
+    return await question_service.create(db, redis, await _get_game(db, game_id), body)
 
 
 @router.put("/games/{game_id}/questions/{question_id}", response_model=QuestionResponse)
@@ -364,33 +380,10 @@ async def update_question(
     body: QuestionUpdate,
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    redis=Depends(get_redis),
 ) -> Question:
-    result = await db.execute(
-        select(Question).where(Question.id == question_id, Question.game_id == game_id)
-    )
-    question = result.scalar_one_or_none()
-    if not question:
-        raise NotFoundError(f"Question {question_id} not found in game {game_id}")
-
-    if body.type is not None:
-        question.type = body.type
-    if body.grading_type is not None:
-        question.grading_type = body.grading_type
-    if body.prompt is not None:
-        question.prompt = bleach.clean(
-            body.prompt, tags=_PROMPT_TAGS, attributes={}, strip=True
-        )
-    if body.config is not None:
-        question.config = body.config
-    if body.answer_data is not None:
-        question.answer_data = body.answer_data
-    if body.time_limit_seconds is not None:
-        question.time_limit_seconds = body.time_limit_seconds
-    if body.points_value is not None:
-        question.points_value = body.points_value
-    if body.order_index is not None:
-        question.order_index = body.order_index
-    return question
+    game = await _get_game(db, game_id)
+    return await question_service.update(db, redis, game, question_id, body)
 
 
 @router.delete("/games/{game_id}/questions/{question_id}", status_code=204)
@@ -399,14 +392,10 @@ async def delete_question(
     question_id: int,
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    redis=Depends(get_redis),
 ) -> None:
-    result = await db.execute(
-        select(Question).where(Question.id == question_id, Question.game_id == game_id)
-    )
-    question = result.scalar_one_or_none()
-    if not question:
-        raise NotFoundError(f"Question {question_id} not found in game {game_id}")
-    await db.delete(question)
+    game = await _get_game(db, game_id)
+    await question_service.delete(db, redis, game, question_id)
 
 
 @router.post("/games/{game_id}/questions/reorder", status_code=204)
@@ -415,21 +404,17 @@ async def reorder_questions(
     body: QuestionReorder,
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    redis=Depends(get_redis),
 ) -> None:
+    game = await _get_game(db, game_id)
+    await question_service.reorder(db, redis, game, body.order)
+
+
+async def _get_game(db: AsyncSession, game_id: int) -> Game:
     game = await db.get(Game, game_id)
     if not game:
         raise NotFoundError(f"Game {game_id} not found")
-
-    result = await db.execute(select(Question).where(Question.game_id == game_id))
-    questions = {q.id: q for q in result.scalars().all()}
-
-    if set(body.order) != set(questions.keys()):
-        raise ConflictError(
-            "order list must contain exactly the IDs of all questions in this game"
-        )
-
-    for idx, qid in enumerate(body.order):
-        questions[qid].order_index = idx
+    return game
 
 
 @router.get("/games/{game_id}/export")
