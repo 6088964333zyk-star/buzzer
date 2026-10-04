@@ -29,7 +29,7 @@ from ..database import AsyncSessionLocal
 from ..models.game import Question
 from ..models.session import GameSession
 from ..redis_client import get_redis
-from ..services import game_service
+from ..services import game_service, map_pin
 from ..services import state_service as state
 from ..services.auth_service import get_user_by_id
 from . import events as E
@@ -139,6 +139,8 @@ def _answer_reveal(q: Question) -> dict:
     Derive a client-safe correct-answer reveal from answer_data.
     answer_data is NEVER forwarded directly — only derived facts are sent.
     """
+    if q.type == "map_pin":  # before COMPLETENESS: always reveal the target
+        return map_pin.reveal(q.answer_data, q.config)
     if q.grading_type == "COMPLETENESS":
         return {"type": "completeness"}
     if q.type == "multiple_choice":
@@ -1130,6 +1132,12 @@ async def on_submit_answer(sid: str, data: dict) -> None:
         question = await db.get(Question, question_id)
         if not question:
             await _emit_error(sid, "Question not found")
+            return
+
+        if question.type == "map_pin" and not map_pin.is_unit_point(
+            answer_data.get("point")
+        ):
+            await _emit_error(sid, "map_pin answer must include point {x, y} in [0, 1]")
             return
 
         if question.type == "multi_select":

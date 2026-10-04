@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.course import Course
 from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
+from . import map_pin
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +46,8 @@ def _levenshtein(a: str, b: str) -> int:
 
 def _answer_reveal(q: Question) -> dict:
     """Mirror of gateway._answer_reveal — derive correct-answer facts from answer_data."""
+    if q.type == "map_pin":
+        return map_pin.reveal(q.answer_data, q.config)
     if q.grading_type == "COMPLETENESS":
         return {"type": "completeness"}
     if q.type == "multiple_choice":
@@ -81,7 +84,35 @@ def _extract_answer_key(q_type: str, answer_data: dict | None) -> str | None:
     if q_type == "fill_in_the_blank":
         text = answer_data.get("text", "").strip()
         return text.lower() if text else None
+    if q_type == "map_pin":
+        point = answer_data.get("point")
+        return map_pin.map_pin_cell(point) if map_pin.is_unit_point(point) else None
     return None
+
+
+def _render_map_summary(q: Question, scores: list) -> str:
+    """Text-only summary for map_pin: the backend can't see the frontend's map
+    image (docs/design-t7-map-question.md, Goldfish D)."""
+    target = q.answer_data.get("target") or {}
+    aspect = map_pin.aspect_ratio(q.config)
+    points = [
+        s.answer_data["point"]
+        for s in scores
+        if s.answer_data and map_pin.is_unit_point(s.answer_data.get("point"))
+    ]
+    if not map_pin.is_unit_point(target):
+        return ""
+    parts = [
+        f"Target ({target['x'] * 100:.1f}%, {target['y'] * 100:.1f}%)",
+        f"{len(points)} guess{'es' if len(points) != 1 else ''}",
+    ]
+    if points:
+        dists = sorted(map_pin.distance(p, target, aspect) for p in points)
+        within = sum(1 for d in dists if d <= q.answer_data.get("fullRadius", 0))
+        median = dists[len(dists) // 2]
+        parts.append(f"{within} within full credit")
+        parts.append(f"median distance {median * 100:.1f}% of map width")
+    return f'<p class="q-stats">{_esc(" · ".join(parts))}</p>'
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +471,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
             "multiple_choice": ("Multiple Choice", "badge-mc"),
             "true_false": ("True / False", "badge-tf"),
             "fill_in_the_blank": ("Fill in the Blank", "badge-fitb"),
+            "map_pin": ("Map Pin", "badge-fitb"),
         }.get(q.type, (q.type, ""))
         type_label, type_class = type_badge
 
@@ -453,6 +485,8 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
             chart = _render_bar_chart(q, dict(dist), reveal, total_players)
         elif q.type == "fill_in_the_blank":
             chart = _render_word_cloud(q, dict(dist), reveal)
+        elif q.type == "map_pin":
+            chart = _render_map_summary(q, q_scores)
         else:
             chart = ""
 

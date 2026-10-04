@@ -17,6 +17,7 @@ from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
 from ..models.user import User
 from ..schemas.game import ScoreResult
+from . import map_pin
 from . import state_service as state
 
 logger = structlog.get_logger()
@@ -324,6 +325,17 @@ def calculate_score(question: Question, answer_data: dict) -> ScoreResult:
     if not answer_data:
         return ScoreResult(points_awarded=0, is_correct=False)
 
+    if question.type == "map_pin":
+        point = answer_data.get("point")
+        if not map_pin.is_unit_point(point):
+            return ScoreResult(points_awarded=0, is_correct=False)
+        if question.grading_type == "COMPLETENESS":
+            return ScoreResult(points_awarded=question.points_value, is_correct=True)
+        points, correct = map_pin.score_map_pin(
+            point, question.answer_data, question.config, question.points_value
+        )
+        return ScoreResult(points_awarded=points, is_correct=correct)
+
     if question.grading_type == "COMPLETENESS":
         return ScoreResult(points_awarded=question.points_value, is_correct=True)
 
@@ -438,6 +450,10 @@ async def record_answer(
         text = " ".join((answer_data.get("text") or "").lower().split())
         if text:
             dist_key = text
+    elif question.type == "map_pin":
+        point = answer_data.get("point")
+        if map_pin.is_unit_point(point):
+            dist_key = map_pin.map_pin_cell(point)
     elif question.type == "multi_select":
         indices = answer_data.get("selectedIndices")
         if isinstance(indices, list):
@@ -513,8 +529,11 @@ async def get_player_question_summary(
         q_ans = r.q_answer_data or {}
         pts_val = r.points_value
 
-        if grading_type == "COMPLETENESS":
-            reveal: dict = {"type": "completeness"}
+        # map_pin always reveals its target, even for COMPLETENESS (design Step 3).
+        if q_type == "map_pin":
+            reveal: dict = map_pin.reveal(q_ans, r.config or {})
+        elif grading_type == "COMPLETENESS":
+            reveal = {"type": "completeness"}
         elif q_type == "multiple_choice":
             pts = q_ans.get("answer_points", [])
             correct_indices = [i for i, p in enumerate(pts) if p >= pts_val]
@@ -623,8 +642,10 @@ async def get_host_question_summary(
         pts_val = q["points_value"]
         grading_type = q["grading_type"]
 
-        if grading_type == "COMPLETENESS":
-            reveal: dict = {"type": "completeness"}
+        if q_type == "map_pin":
+            reveal: dict = map_pin.reveal(q_ans, q["config"])
+        elif grading_type == "COMPLETENESS":
+            reveal = {"type": "completeness"}
         elif q_type == "multiple_choice":
             pts_list = q_ans.get("answer_points", [])
             reveal = {
@@ -679,6 +700,11 @@ async def get_host_question_summary(
                             if isinstance(idx, int):
                                 k = str(idx)
                                 dist[k] = dist.get(k, 0) + 1
+                elif q_type == "map_pin":
+                    point = ans.get("point")
+                    if map_pin.is_unit_point(point):
+                        k = map_pin.map_pin_cell(point)
+                        dist[k] = dist.get(k, 0) + 1
             if s["is_correct"]:
                 correct_count += 1
             if s["answer_time_ms"] is not None:
