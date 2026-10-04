@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trash2, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -20,10 +20,9 @@ interface UserDetail {
   game_access: number[];
 }
 interface Course { id: number; name: string; semester: string }
-interface Game { id: number; title: string }
+interface Game { id: number; title: string; course_id: number | null }
 
 interface CourseSelection { id: number; role: 'HOST' | 'PLAYER'; checked: boolean }
-interface GameSelection { id: number; checked: boolean }
 
 export default function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
@@ -35,9 +34,6 @@ export default function UserDetailPage() {
   const [showCoursePanel, setShowCoursePanel] = useState(false);
   const [courseSelections, setCourseSelections] = useState<CourseSelection[]>([]);
   const [grantingCourses, setGrantingCourses] = useState(false);
-  const [showGamePanel, setShowGamePanel] = useState(false);
-  const [gameSelections, setGameSelections] = useState<GameSelection[]>([]);
-  const [grantingGames, setGrantingGames] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editUsername, setEditUsername] = useState('');
   const [editDisplayName, setEditDisplayName] = useState('');
@@ -95,38 +91,6 @@ export default function UserDetailPage() {
     }
   }
 
-  function openGamePanel(availableGames: Game[]) {
-    setGameSelections(availableGames.map((g) => ({ id: g.id, checked: false })));
-    setShowGamePanel(true);
-  }
-
-  async function grantSelectedGames() {
-    const selected = gameSelections.filter((s) => s.checked);
-    if (selected.length === 0) return;
-    setGrantingGames(true);
-    setError('');
-    try {
-      await Promise.all(
-        selected.map((s) => api.post(`/admin/users/${userId}/game-access`, { game_id: s.id }))
-      );
-      setShowGamePanel(false);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to grant game access');
-    } finally {
-      setGrantingGames(false);
-    }
-  }
-
-  async function revokeGameAccess(gameId: number) {
-    try {
-      await api.delete(`/admin/users/${userId}/game-access/${gameId}`);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to revoke game access');
-    }
-  }
-
   function startEdit(u: UserDetail) {
     setEditUsername(u.username ?? '');
     setEditDisplayName(u.display_name ?? '');
@@ -170,15 +134,11 @@ export default function UserDetailPage() {
   if (!user) return <div className="p-8 text-slate-400">{error || 'Loading\u2026'}</div>;
 
   const courseMap = Object.fromEntries(courses.map((c) => [c.id, c]));
-  const gameMap = Object.fromEntries(games.map((g) => [g.id, g]));
 
   const grantedCourseIds = new Set(user.course_access.map((ca) => ca.course_id));
-  const grantedGameIds = new Set(user.game_access);
   const availableCourses = courses.filter((c) => !grantedCourseIds.has(c.id));
-  const availableGames = games.filter((g) => !grantedGameIds.has(g.id));
 
   const selectedCourseCount = courseSelections.filter((s) => s.checked).length;
-  const selectedGameCount = gameSelections.filter((s) => s.checked).length;
 
   return (
     <div className="p-8 max-w-3xl space-y-6">
@@ -382,78 +342,50 @@ export default function UserDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Game access */}
+      {/* Game access: derived from course access, read-only (docs/design-t4-admin.md A4) */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-slate-100">Game Access</h3>
-            {availableGames.length > 0 && !showGamePanel && (
-              <Button size="sm" variant="outline" onClick={() => openGamePanel(availableGames)}>
-                Add Games
-              </Button>
-            )}
-          </div>
+          <h3 className="font-semibold text-slate-100">Game Access</h3>
+          <p className="text-slate-400 text-xs mt-1">
+            {user.role === 'ADMIN'
+              ? 'Admins can access every game.'
+              : user.role === 'GUEST'
+                ? "Guests aren't course-restricted: they can join any game with its room code."
+                : "Game access comes from course access. To give this user a game, grant them access to the game's course."}
+            {user.role === 'USER' && user.netid &&
+              " They can also play games in any course whose active roster lists their NetID (see that course's roster)."}
+          </p>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {user.game_access.length === 0 && !showGamePanel && (
-            <p className="text-slate-500 text-sm">No game access granted.</p>
-          )}
-          {user.game_access.map((gid) => {
-            const game = gameMap[gid];
-            return (
-              <div key={gid} className="flex items-center justify-between">
-                <span className="text-slate-200 text-sm">{game ? game.title : `Game ${gid}`}</span>
-                <Button variant="ghost" size="sm" onClick={() => void revokeGameAccess(gid)}>
-                  <Trash2 size={12} />
-                </Button>
-              </div>
-            );
-          })}
-
-          {showGamePanel && (
-            <div className="rounded-lg border border-slate-600 bg-slate-800/50 p-3 space-y-1">
-              <div className="flex items-center gap-2 pb-1 mb-1 border-b border-slate-700">
-                <input
-                  type="checkbox"
-                  className="rounded"
-                  checked={gameSelections.every((s) => s.checked)}
-                  onChange={(e) =>
-                    setGameSelections((prev) => prev.map((s) => ({ ...s, checked: e.target.checked })))
-                  }
-                />
-                <span className="text-xs text-slate-400">Select all</span>
-              </div>
-              {gameSelections.map((sel, i) => {
-                const game = gameMap[sel.id];
-                return (
-                  <div key={sel.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="rounded"
-                      checked={sel.checked}
-                      onChange={(e) =>
-                        setGameSelections((prev) =>
-                          prev.map((s, j) => j === i ? { ...s, checked: e.target.checked } : s)
-                        )
-                      }
-                    />
-                    <span className="text-sm text-slate-200">{game ? game.title : `Game ${sel.id}`}</span>
-                  </div>
-                );
-              })}
-              <div className="flex gap-2 pt-2">
-                <Button
-                  size="sm"
-                  onClick={() => void grantSelectedGames()}
-                  disabled={selectedGameCount === 0 || grantingGames}
-                >
-                  {grantingGames ? 'Granting\u2026' : `Grant Selected (${selectedGameCount})`}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowGamePanel(false)}>Cancel</Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
+        {user.role === 'USER' && (
+          <CardContent className="space-y-3">
+            {user.course_access.length === 0 && (
+              <p className="text-slate-500 text-sm">No games through course access.</p>
+            )}
+            {user.course_access.map((ca) => {
+              const course = courseMap[ca.course_id];
+              const courseGames = games.filter((g) => g.course_id === ca.course_id);
+              return (
+                <div key={ca.course_id}>
+                  <p className="text-slate-300 text-sm">
+                    <Link to={`/courses/${ca.course_id}`} className="hover:underline">
+                      {course ? `${course.name} \u2014 ${course.semester}` : `Course ${ca.course_id}`}
+                    </Link>
+                    <span className="ml-2 text-xs text-slate-400">
+                      {ca.role === 'HOST' ? 'Can host' : 'Can play'}
+                    </span>
+                  </p>
+                  {courseGames.length === 0 ? (
+                    <p className="text-slate-500 text-xs ml-4">No games in this course.</p>
+                  ) : (
+                    <ul className="ml-4 list-disc list-inside text-slate-200 text-sm">
+                      {courseGames.map((g) => <li key={g.id}>{g.title}</li>)}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        )}
       </Card>
     </div>
   );
