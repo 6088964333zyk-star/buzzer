@@ -21,6 +21,7 @@ from ..models.session import GameSession, SessionScore
 from ..models.user import User
 from ..schemas.admin import (
     AdminSessionItem,
+    CourseAccessEntry,
     CourseAccessGrant,
     CourseCreate,
     CourseResponse,
@@ -114,6 +115,42 @@ async def update_course(
     if body.semester is not None:
         course.semester = body.semester
     return course
+
+
+@router.get("/courses/{course_id}/access", response_model=list[CourseAccessEntry])
+async def list_course_access(
+    course_id: int,
+    _: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[dict]:
+    """Users with a HOST or PLAYER grant on this course, hosts first."""
+    if not await db.get(Course, course_id):
+        raise NotFoundError(f"Course {course_id} not found")
+
+    result = await db.execute(
+        select(UserCourseAccess, User)
+        .join(User, User.id == UserCourseAccess.user_id)
+        .where(UserCourseAccess.course_id == course_id)
+    )
+    entries = [
+        {
+            "user_id": user.id,
+            "username": user.username,
+            "netid": user.netid,
+            "display_name": user.display_name,
+            "user_role": user.role,
+            "course_role": access.role,
+        }
+        for access, user in result.all()
+    ]
+    entries.sort(
+        key=lambda e: (
+            0 if e["course_role"] == "HOST" else 1,
+            (e["display_name"] or e["username"] or e["netid"] or "").lower(),
+            e["user_id"],
+        )
+    )
+    return entries
 
 
 # ---------------------------------------------------------------------------
