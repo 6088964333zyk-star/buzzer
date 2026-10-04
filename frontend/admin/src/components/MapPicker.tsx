@@ -1,7 +1,7 @@
 // Editor control for map_pin questions: click the map to set the target, set
 // the two scoring radii, and preview them as circles. Copied into the admin app
 // (separate Vite builds); keep the copies identical.
-// docs/design-t7-map-question.md, D2 / D5.
+// docs/design-t7-map-question.md, D2 / D5; T8 D7: any image can be the map.
 import { MapCanvas } from './MapCanvas';
 import { Input } from './ui/input';
 import type { MapPoint } from '../lib/mapPin';
@@ -15,8 +15,13 @@ export interface MapPickerValue {
 export function MapPicker({
   value,
   onChange,
+  imageUrl = null,
+  aspectRatio = 2,
 }: {
   value: MapPickerValue;
+  /** Map image; null means the built-in world map (aspect 2). */
+  imageUrl?: string | null;
+  aspectRatio?: number;
   onChange: (v: MapPickerValue) => void;
 }) {
   const radiiOk = 0 <= value.fullRadius && value.fullRadius < value.zeroRadius && value.zeroRadius <= 1;
@@ -31,7 +36,8 @@ export function MapPicker({
         )}
       </label>
       <MapCanvas
-        aspectRatio={2}
+        aspectRatio={aspectRatio}
+        imageUrl={imageUrl}
         target={value.target}
         fullRadius={value.fullRadius}
         zeroRadius={value.zeroRadius}

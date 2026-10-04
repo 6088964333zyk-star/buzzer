@@ -1,6 +1,7 @@
 // HTML <canvas> map for map_pin questions (docs/design-t7-map-question.md D4).
-// The same file is copied into the host and admin apps (separate Vite builds);
-// keep the copies identical.
+// T8 (docs/design-t8-images.md D7): any uploaded image can replace the world map.
+// The same file is copied into the host, player and admin apps (separate Vite
+// builds); keep the copies identical.
 import { useCallback, useEffect, useRef } from 'react';
 import { MAP_URL, type MapPoint } from '../lib/mapPin';
 
@@ -8,6 +9,8 @@ export interface MapDot { point: MapPoint; count: number }
 
 interface Props {
   aspectRatio: number;
+  /** Background image; omit for the built-in world map. */
+  imageUrl?: string | null;
   /** The player's (or editor's) pin. */
   point?: MapPoint | null;
   /** Called with image fractions when the user taps; omit for read-only. */
@@ -20,24 +23,35 @@ interface Props {
   className?: string;
 }
 
-let mapImage: HTMLImageElement | null = null;
+// One <img> per URL for the whole page; every canvas redraws when one arrives
+// (Goldfish J). Editors put ?v=<sha256> in the URL, so a replaced image is a
+// new entry (T8 Goldfish 2).
+const images = new Map<string, HTMLImageElement>();
 const waiting = new Set<() => void>();
 
-/** Load the map once per page; redraw every canvas when it arrives (Goldfish J). */
-function useMapImage(onReady: () => void) {
+function loadImage(url: string): HTMLImageElement {
+  let img = images.get(url);
+  if (!img) {
+    img = new Image();
+    img.onload = () => waiting.forEach((cb) => cb());
+    img.src = url;
+    images.set(url, img);
+  }
+  return img;
+}
+
+function useRedrawOnLoad(onReady: () => void) {
   useEffect(() => {
-    if (!mapImage) {
-      mapImage = new Image();
-      mapImage.onload = () => waiting.forEach((cb) => cb());
-      mapImage.src = MAP_URL;
-    }
     waiting.add(onReady);
     return () => { waiting.delete(onReady); };
   }, [onReady]);
 }
 
+/** Tall images would fill the page; cap the height and narrow the canvas. */
+const MAX_HEIGHT_FRACTION = 0.7;
+
 export function MapCanvas({
-  aspectRatio, point, onPoint, target, fullRadius, zeroRadius, dots, className,
+  aspectRatio, imageUrl, point, onPoint, target, fullRadius, zeroRadius, dots, className,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -45,9 +59,11 @@ export function MapCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     // Size from config.aspectRatio, never the image's natural size (Goldfish I).
-    const cssWidth = canvas.clientWidth;
+    const available = canvas.parentElement?.clientWidth ?? canvas.clientWidth;
+    const cssWidth = Math.min(available, window.innerHeight * MAX_HEIGHT_FRACTION * aspectRatio);
     const cssHeight = cssWidth / aspectRatio;
     const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = `${cssWidth}px`;
     canvas.style.height = `${cssHeight}px`;
     canvas.width = Math.round(cssWidth * dpr);
     canvas.height = Math.round(cssHeight * dpr);
@@ -56,8 +72,9 @@ export function MapCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    if (mapImage?.complete && mapImage.naturalWidth > 0) {
-      ctx.drawImage(mapImage, 0, 0, cssWidth, cssHeight);
+    const background = loadImage(imageUrl || MAP_URL);
+    if (background.complete && background.naturalWidth > 0) {
+      ctx.drawImage(background, 0, 0, cssWidth, cssHeight);
     } else {
       ctx.fillStyle = '#cfe3f2';
       ctx.fillRect(0, 0, cssWidth, cssHeight);
@@ -101,9 +118,9 @@ export function MapCanvas({
     };
     if (target) pin(target, '#16a34a');
     if (point) pin(point, '#dc2626');
-  }, [aspectRatio, point, target, fullRadius, zeroRadius, dots]);
+  }, [aspectRatio, imageUrl, point, target, fullRadius, zeroRadius, dots]);
 
-  useMapImage(draw);
+  useRedrawOnLoad(draw);
   useEffect(() => {
     draw();
     window.addEventListener('resize', draw);
@@ -124,7 +141,7 @@ export function MapCanvas({
     <canvas
       ref={canvasRef}
       onPointerDown={handlePointer}
-      className={`w-full rounded-lg touch-none ${onPoint ? 'cursor-crosshair' : ''} ${className ?? ''}`}
+      className={`block mx-auto max-w-full rounded-lg touch-none ${onPoint ? 'cursor-crosshair' : ''} ${className ?? ''}`}
     />
   );
 }
