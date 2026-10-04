@@ -11,8 +11,10 @@ import { api } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
+import { MapPicker } from '../../components/MapPicker';
+import type { MapPoint } from '../../lib/mapPin';
 
-type QuestionType = 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select';
+type QuestionType = 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin';
 type GradingType = 'ACCURACY' | 'COMPLETENESS';
 
 interface Question {
@@ -85,6 +87,10 @@ interface FormState {
   fibEditDistance: number;
   // multi_select
   msOptions: McOption[];
+  // map_pin (docs/design-t7-map-question.md)
+  mapTarget: MapPoint | null;
+  mapFullRadius: number;
+  mapZeroRadius: number;
 }
 
 const defaultForm = (): FormState => ({
@@ -99,6 +105,9 @@ const defaultForm = (): FormState => ({
   fibAnswers: [{ text: '', points: 1 }],
   fibEditDistance: 0,
   msOptions: [{ text: '', points: 1 }, { text: '', points: 1 }],
+  mapTarget: null,
+  mapFullRadius: 0.02,
+  mapZeroRadius: 0.15,
 });
 
 function questionToForm(q: Question): FormState {
@@ -131,6 +140,10 @@ function questionToForm(q: Question): FormState {
     base.msOptions = opts.length
       ? opts.map((text, i) => ({ text, points: pts[i] ?? 1 }))
       : [{ text: '', points: 1 }, { text: '', points: 1 }];
+  } else if (q.type === 'map_pin') {
+    base.mapTarget = (q.answer_data['target'] as MapPoint | undefined) ?? null;
+    base.mapFullRadius = (q.answer_data['fullRadius'] as number | undefined) ?? 0.02;
+    base.mapZeroRadius = (q.answer_data['zeroRadius'] as number | undefined) ?? 0.15;
   }
   return base;
 }
@@ -154,6 +167,16 @@ function formToPayload(form: FormState) {
     const p = buildMsPayload(msOptions);
     config = p.config;
     answer_data = p.answer_data;
+  } else if (form.type === 'map_pin') {
+    // Target is required for both grading types (Goldfish B); aspectRatio is
+    // always written so config is the single source of truth (Goldfish I).
+    if (!form.mapTarget) throw new Error('Click the map to set the correct location.');
+    config = { aspectRatio: 2 };
+    answer_data = {
+      target: form.mapTarget,
+      fullRadius: form.mapFullRadius,
+      zeroRadius: form.mapZeroRadius,
+    };
   } else if (form.type === 'fill_in_the_blank') {
     const p = buildFibPayload(fibAnswers, form.fibEditDistance);
     config = p.config;
@@ -163,7 +186,8 @@ function formToPayload(form: FormState) {
     throw new Error(`Unsupported question type: ${String(unknownType)}`);
   }
   const points_value =
-    form.grading === 'COMPLETENESS'
+    // map_pin points don't come from per-option values (Goldfish C).
+    form.grading === 'COMPLETENESS' || form.type === 'map_pin'
       ? form.pointsValue
       : form.type === 'multiple_choice'
       ? Math.max(0, ...form.mcOptions.map((o) => o.points))
@@ -215,6 +239,7 @@ function QuestionForm({
             <option value="true_false">True / False</option>
             <option value="fill_in_the_blank">Fill in the Blank</option>
             <option value="multi_select">Multi-Select (Select All That Apply)</option>
+            <option value="map_pin">Map Pin (tap the location)</option>
           </select>
         </div>
         <div className="flex-1">
@@ -372,6 +397,15 @@ function QuestionForm({
         </div>
       )}
 
+      {form.type === 'map_pin' && (
+        <MapPicker
+          value={{ target: form.mapTarget, fullRadius: form.mapFullRadius, zeroRadius: form.mapZeroRadius }}
+          onChange={(v) => setForm((prev) => ({
+            ...prev, mapTarget: v.target, mapFullRadius: v.fullRadius, mapZeroRadius: v.zeroRadius,
+          }))}
+        />
+      )}
+
       {form.type === 'true_false' && form.grading === 'ACCURACY' && (
         <div>
           <label className="block text-xs text-slate-400 mb-2">Points per answer</label>
@@ -485,7 +519,7 @@ function QuestionForm({
             max="300"
           />
         </div>
-        {form.grading === 'COMPLETENESS' && (
+        {(form.grading === 'COMPLETENESS' || form.type === 'map_pin') && (
           <div>
             <label className="block text-xs text-slate-400 mb-1">Points value</label>
             <Input
@@ -609,6 +643,7 @@ export default function QuestionEditorPage() {
     true_false: 'T/F',
     fill_in_the_blank: 'Fill',
     multi_select: 'Multi',
+    map_pin: 'Map',
   };
 
   if (loading) return <div className="p-8 text-slate-400">Loading\u2026</div>;
@@ -741,6 +776,15 @@ export default function QuestionEditorPage() {
                       {(q.answer_data['editDistance'] as number) > 0 && (
                         <span className="ml-2 text-slate-500">(\u00b1{q.answer_data['editDistance'] as number} edit distance)</span>
                       )}
+                    </div>
+                  )}
+
+                  {q.type === 'map_pin' && (
+                    <div className="mt-2 text-xs text-slate-400">
+                      Target {((q.answer_data['target'] as MapPoint | undefined)?.x ?? 0) * 100 | 0}%,{' '}
+                      {((q.answer_data['target'] as MapPoint | undefined)?.y ?? 0) * 100 | 0}% · full credit within{' '}
+                      {((q.answer_data['fullRadius'] as number) * 100).toFixed(1)}% · zero beyond{' '}
+                      {((q.answer_data['zeroRadius'] as number) * 100).toFixed(1)}%
                     </div>
                   )}
 

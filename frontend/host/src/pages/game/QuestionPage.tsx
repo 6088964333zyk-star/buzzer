@@ -25,6 +25,7 @@ export default function QuestionPage() {
     true_false: 'True / False',
     fill_in_the_blank: 'Fill in the Blank',
     multi_select: 'Multi-Select',
+    map_pin: 'Map Pin',
   };
 
   function editDistanceLabel(d: number): string {
@@ -74,6 +75,11 @@ export default function QuestionPage() {
         <h2 className="text-4xl font-bold text-slate-100 text-center max-w-3xl leading-tight">
           {currentQuestion.prompt}
         </h2>
+      )}
+
+      {/* The map itself stays off the big screen so it can't hint the answer. */}
+      {!questionLocked && currentQuestion.type === 'map_pin' && (
+        <p className="text-indigo-300 text-2xl">📍 Tap the map on your phone</p>
       )}
 
       <div className="text-slate-300 text-xl">

@@ -20,3 +20,11 @@ export function cellToPoint(key: string): MapPoint | null {
   const [cx, cy] = key.split(':').map(Number);
   return Number.isFinite(cx) && Number.isFinite(cy) ? { x: cx / 200, y: cy / 100 } : null;
 }
+
+/** answerDistribution grid keys ("102:28") -> map dots, skipping malformed keys. */
+export function distributionDots(dist: Record<string, number>): { point: MapPoint; count: number }[] {
+  return Object.entries(dist).flatMap(([key, count]) => {
+    const point = cellToPoint(key);
+    return point ? [{ point, count }] : [];
+  });
+}
