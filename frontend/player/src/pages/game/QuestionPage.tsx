@@ -1,6 +1,8 @@
 import { useRef, useState, useCallback } from 'react';
 import { useGame } from './GameLayout';
 import { TimerBar } from '../../components/ui/TimerBar';
+import { MapCanvas } from '../../components/MapCanvas';
+import type { MapPoint } from '../../lib/mapPin';
 
 const OPTION_COLORS = [
   'bg-red-600 hover:bg-red-500 border-red-500',
@@ -23,6 +25,7 @@ export default function QuestionPage() {
   const [submitted, setSubmitted] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [mapPoint, setMapPoint] = useState<MapPoint | null>(null);
 
   const toggleIndex = useCallback((i: number) => {
     if (submitted || questionLocked) return;
@@ -203,6 +206,37 @@ export default function QuestionPage() {
           </button>
         )}
         {submitted && <p className="text-center text-slate-400 text-sm mt-4">Answer submitted — waiting for results…</p>}
+        {!submitted && questionLocked && lockedMsg}
+      </div>
+    );
+  }
+
+  if (currentQuestion.type === 'map_pin') {
+    const locked = submitted || questionLocked;
+    return (
+      <div className="py-6 px-4 flex flex-col gap-3">
+        <div className="pb-2">
+          {questionLabel}
+          <TimerBar key={currentQuestion.questionId} totalSeconds={currentQuestion.timeLimitSeconds} paused={questionLocked} />
+        </div>
+        <p className="text-center text-slate-400 text-sm">
+          {locked ? 'Your pin' : mapPoint ? 'Tap again to move your pin' : 'Tap the map where you think it is'}
+        </p>
+        <MapCanvas
+          aspectRatio={currentQuestion.config.aspectRatio ?? 2}
+          point={mapPoint}
+          onPoint={locked ? undefined : setMapPoint}
+        />
+        {!locked && (
+          <button
+            disabled={!mapPoint}
+            onClick={() => mapPoint && submit({ point: mapPoint })}
+            className="w-full rounded-2xl py-5 text-white font-black text-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed mt-2"
+          >
+            Submit
+          </button>
+        )}
+        {submitted && <p className="text-center text-slate-400 text-sm mt-2">Answer submitted — waiting for results…</p>}
         {!submitted && questionLocked && lockedMsg}
       </div>
     );

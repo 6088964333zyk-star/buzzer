@@ -1,4 +1,34 @@
 import { useGame } from './GameLayout';
+import { MapCanvas } from '../../components/MapCanvas';
+import { formatPct, mapDistance, type MapPoint } from '../../lib/mapPin';
+import type { MapPinReveal } from '../../types/game';
+
+/** map_pin results: distance + points, no Correct/Incorrect (design Goldfish F). */
+function MapPinResult({ reveal, point, points, completeness }: {
+  reveal: MapPinReveal; point: MapPoint | null; points: number; completeness: boolean;
+}) {
+  const d = point ? mapDistance(point, reveal.target, reveal.aspectRatio) : null;
+  return (
+    <div className="w-full max-w-md flex flex-col gap-3">
+      {completeness ? (
+        <p className="text-indigo-400 text-3xl font-black">Thanks for playing!</p>
+      ) : d !== null && d <= reveal.fullRadius ? (
+        <p className="text-green-400 text-4xl font-black">Bullseye!</p>
+      ) : d !== null ? (
+        <p className="text-slate-100 text-2xl font-bold">You were {formatPct(d)} of the map away</p>
+      ) : (
+        <p className="text-slate-400 text-xl">No pin placed</p>
+      )}
+      <MapCanvas
+        aspectRatio={reveal.aspectRatio}
+        point={point}
+        target={reveal.target}
+        fullRadius={reveal.fullRadius}
+      />
+      <p className="text-slate-100 text-3xl font-bold">+{points.toLocaleString()} pts</p>
+    </div>
+  );
+}
 
 function describeAnswer(
   lastAnswerData: Record<string, unknown> | null,
@@ -33,6 +63,29 @@ export default function ResultsPage() {
   }
 
   const { answerReveal, yourPoints, yourScore, yourRank, playerCount } = questionResults;
+
+  if (answerReveal.type === 'map_pin') {
+    const p = lastAnswerData?.point as MapPoint | undefined;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 gap-5 text-center">
+        <MapPinResult
+          reveal={answerReveal}
+          point={p ?? null}
+          points={yourPoints}
+          completeness={currentQuestion?.gradingType === 'COMPLETENESS'}
+        />
+        <div className="mt-2 space-y-1">
+          <p className="text-slate-300 text-lg">
+            Total: <span className="font-bold text-white">{yourScore.toLocaleString()}</span> pts
+          </p>
+          <p className="text-slate-400 text-base">
+            Rank <span className="font-bold text-white">#{yourRank}</span> of {playerCount}
+          </p>
+        </div>
+        <p className="text-slate-500 text-sm mt-4">Waiting for next question…</p>
+      </div>
+    );
+  }
   const answeredLabel = describeAnswer(
     lastAnswerData,
     currentQuestion?.type ?? '',
