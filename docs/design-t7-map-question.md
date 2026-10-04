@@ -2,7 +2,8 @@
 
 **Owner:** Bill Zhang (yyzhang). This is one of the two T7 types. Jack Mayerhofer owns the
 other one (non-Canvas, classroom style); it is out of scope here.
-**Status:** Draft, before Goldfish test.
+**Status:** Revised after Goldfish test (fresh session `buzzer-72-a6`, 2026-10-03). The
+pre-Goldfish draft is commit `c9faa4d`. See *§8 Goldfish revision log*.
 **Builds on:** `docs/design-t4-host.md`. The branch `feature/t7-map-question` is stacked on
 `feature/t4-host` and uses its `services/question_service.py` and host question editor.
 **Context docs:** backend `backend/app/**/CLAUDE.md`. For the frontend, `frontend/*/src/**/CLAUDE.md`
@@ -73,6 +74,12 @@ Constraints from the codebase:
   - `d ≥ zeroRadius` → `0`;
   - otherwise `points_value × (zeroRadius − d) / (zeroRadius − fullRadius)`.
 - **`is_correct`** = `d ≤ fullRadius`.
+- **Rounding:** points are rounded to 2 decimals, so leaderboards never show 37.48219.
+- **One numeric check, used three times.** `is_unit_point(p)` lives in
+  `backend/app/services/map_pin.py`. It accepts a dict whose `x` and `y` are `int`/`float`
+  but **not `bool`** (`isinstance(True, int)` is true in Python), finite, and in [0, 1]. The
+  schema validator, the gateway check and `calculate_score` all call it. The scoring function
+  `score_map_pin(...)` and the grid key `map_pin_cell(point)` live in the same module.
 - **COMPLETENESS:** any valid point earns `points_value`, matching existing types.
 - **Editor defaults:** `fullRadius = 0.02`, `zeroRadius = 0.15`.
 - **Known limit:** on an equirectangular map, image distance isn't kilometers; east–west
@@ -125,9 +132,14 @@ Constraints from the codebase:
 - Add `map_pin` to the type regex in **both** `QuestionCreate.type` and `QuestionUpdate.type`.
 - In `QuestionCreate.validate_structure`, add a `map_pin` branch:
   - `config.aspectRatio`, if present, must be a number > 0.
-  - **ACCURACY:** `answer_data.target` is a dict with numeric `x`, `y` in [0, 1]. `fullRadius`
-    and `zeroRadius` are numbers with `0 ≤ fullRadius < zeroRadius ≤ 1`. Anything else
-    raises `ValueError` with a clear message.
+  - **Both ACCURACY and COMPLETENESS** (Goldfish B): `answer_data.target` must satisfy
+    `is_unit_point`. `fullRadius` and `zeroRadius` are non-bool numbers with
+    `0 ≤ fullRadius < zeroRadius ≤ 1`. Anything else raises `ValueError` with a clear message.
+    A target is always present, so every reveal can draw it. For COMPLETENESS the target is
+    shown, but scoring ignores distance.
+  - `config.aspectRatio` is required, and the editors always write it (Goldfish I; 2 for the
+    world map). The frontend sizes the canvas from `config.aspectRatio`, never from the image's
+    natural size, so drawing and scoring can't disagree.
 - Updates are covered automatically: `question_service.update` re-validates the merged
   question with `QuestionCreate` (T4 D7).
 
@@ -137,24 +149,35 @@ Constraints from the codebase:
   - Otherwise return 0 / not correct. Never raise.
   - Read `aspectRatio` with `config.get("aspectRatio", 2)`.
 - **`record_answer`:** for `map_pin`, `dist_key` is the D3 grid key.
-- **`get_player_question_summary` and `get_host_question_summary`:** add a `map_pin` reveal
-  with `target`, `fullRadius` and `zeroRadius`. The player summary includes the player's
-  `point` and distance.
+- **Summaries:** `get_player_question_summary` and `get_host_question_summary` use the reveal
+  below as `answerReveal`. The player's `playerAnswer` is their stored answer, unchanged:
+  `{"point": {"x": .., "y": ..}}`. **Distance is not sent.** Both frontends compute it with
+  the same formula from `point`, `target` and `aspectRatio` (helper `mapDistance` in each
+  app's `lib/mapPin.ts`). The server sends points; the client only displays distance.
 
 ### Step 3 — Gateway (`backend/app/websocket/gateway.py`)
 - **`on_submit_answer`:** before scoring, for `map_pin` require `answer_data.point` with
   numeric `x`, `y` in [0, 1]. Otherwise `_emit_error(sid, "map_pin answer must include
   point {x, y} in [0, 1]")` and return, as the `multi_select` check does.
-- **`_answer_reveal`:** a `map_pin` branch returning `target`, `fullRadius` and `zeroRadius`.
+- **`_answer_reveal`:** a `map_pin` branch, placed **before** the existing
+  `if q.grading_type == "COMPLETENESS": return {"type": "completeness"}` early return, so
+  participation map questions still reveal the target. It returns exactly:
+  ```json
+  {"type": "map_pin", "target": {"x": 0.512, "y": 0.281},
+   "fullRadius": 0.02, "zeroRadius": 0.15, "aspectRatio": 2}
+  ```
+  The same object is the `answerReveal` in both summaries, and in `report_service`'s copy.
+  `types/game.ts` in the player and host apps gets a matching
+  `MapPinReveal { type: 'map_pin'; target: {x: number; y: number}; fullRadius: number;
+  zeroRadius: number; aspectRatio: number }`. The answer type is
+  `MapPinAnswer { point: {x: number; y: number} }`.
 
 ### Step 4 — HTML report (`backend/app/services/report_service.py`)
 - **`_answer_reveal`, `_extract_answer_key`** (return the grid key) and the type badge
   ("Map Pin").
-- **Per-question section:** an inline SVG at 2:1 that references the world map image as a
-  base64 data URI. If the base64 approach is too heavy, fall back to a plain rectangle
-  outline. Draw the target and the guess cells.
-- **Fallback if time runs short:** a text line, "Target (x, y); N guesses; M within full
-  credit".
+- **Per-question section: a text summary only** (Goldfish D). The backend can't see the
+  frontend's PNG, and a second copy of the image isn't worth it. The summary reads: "Target
+  (51.2%, 28.1%) · N guesses · M within full credit · median distance P% of map width".
 
 ### Step 5 — Map asset
 - `scripts/render_world_map.py` (one-off; dependencies only in the dev venv):
@@ -172,8 +195,12 @@ Constraints from the codebase:
   `readOnly`. It owns the D4 canvas logic and the drawing.
 - `pages/game/QuestionPage.tsx`: a `map_pin` branch renders `MapCanvas` plus a Submit button,
   then `emitAnswer({point})`.
-- `pages/game/ResultsPage.tsx`: show `MapCanvas` read-only with your point and the target, plus
-  the distance as "% of map width".
+- `pages/game/ResultsPage.tsx`: show `MapCanvas` read-only with your point and the target.
+  **No Correct/Incorrect verdict** (Goldfish F; the generic branch treats any points > 0 as
+  correct). Show "You were 4.2% of the map away · +63 pts", and "Bullseye!" only when
+  `isCorrect`. For COMPLETENESS: "Thanks for playing · +N pts".
+- `MapCanvas` draws only after the map image's `onload`. It redraws on load, on resize and
+  on prop changes.
 - `pages/game/GameOverPage.tsx`: `map_pin` branches in `describePlayerAnswer` and in the reveal
   text.
 
@@ -184,14 +211,21 @@ Constraints from the codebase:
 - `pages/game/ResultsPage.tsx`: for `map_pin`, a large canvas with the world map, guess dots
   from `answer_dist` keys (`"cx:cy"` → `(cx/200, cy/100)`), the target pin and the full-credit
   circle.
-- `pages/game/GameOverPage.tsx`: the reveal text.
+- `pages/game/GameOverPage.tsx`: for `map_pin`, the per-question card shows a **small map**
+  (the same canvas component as results) with the target and guess dots, instead of the bar
+  chart that would otherwise render dozens of `"113:42"` bars (Goldfish E).
+- Every `typeLabel` / badge map in the host and player pages gains `map_pin: 'Map'`.
 - `components/MapPicker.tsx` (new): click to set the target, number inputs for the radii, and
   circles drawn live.
 - `pages/manage/QuestionEditorPage.tsx`:
   - the `map_pin` option;
   - `FormState` fields `mapTarget`, `mapFullRadius` and `mapZeroRadius`;
-  - `questionToForm` / `formToPayload` branches. ACCURACY `points_value` is the form's points
-    field, because map points don't come from options;
+  - `questionToForm` / `formToPayload` branches. Today's form shows a "Points value" input
+    only for COMPLETENESS. For `map_pin` it must show it for **ACCURACY too**, since map
+    points don't come from per-option values (Goldfish C). The default is 1, matching other
+    types. The `map_pin` branch in `formToPayload` is explicit, and the host copy already
+    throws on unknown types (T4 D6). In the **admin** copy the final `else` still falls
+    through to fill-in-the-blank, so the `map_pin` branch must sit **before** that `else`;
   - a form branch with `MapPicker`;
   - a list preview line.
 
@@ -200,8 +234,8 @@ Constraints from the codebase:
   `pages/QuestionEditorPage.tsx`. Record the exact lines in the MR description, for Jack.
 
 ### Step 9 — Simulator (`scripts/simulate_players.py`)
-- In `_make_answer`, for `map_pin`, return a random point. With `--game-json`, fast and normal
-  players aim near `answer_data.target`.
+- In `_make_answer`, for `map_pin`, return a random point. With `--game-json` (an existing
+  option), fast and normal players aim near `answer_data.target`.
 
 ### Step 10 — Sample games (T6)
 - Add 2–3 `map_pin` questions to `sample_games/yyzhang_football_party.json`, for example
@@ -221,7 +255,8 @@ Constraints from the codebase:
   - midway → half (±0.01);
   - a pure-y offset of 0.05 on a 2:1 map scores like `d = 0.025`;
   - COMPLETENESS → full;
-  - a missing, non-numeric or out-of-range point → 0, with no exception.
+  - a missing, non-numeric, boolean or out-of-range point → 0, with no exception;
+  - points are rounded to 2 decimals.
 - **Integration** (`tests/integration/test_map_pin.py`):
   1. Host API: create a valid `map_pin` → 201. `fullRadius ≥ zeroRadius` → 422. A target with
      x > 1 → 422. An update that breaks the radii → 422, and the stored question is unchanged.
@@ -230,8 +265,11 @@ Constraints from the codebase:
      - midway → about half;
      - beyond `zeroRadius` → 0;
      - the host's `question_results` `answer_dist` contains the three grid keys.
-  3. A guest sends `{point: {x: 2, y: 0.5}}` → an `error` event, no `answer_received`, and the
-     CSV export shows no score for that guest.
+  3. A guest sends `{point: {x: 2, y: 0.5}}`, then `{point: {x: true, y: 0}}` → an `error`
+     event each time, no `answer_received`, and the CSV export shows no score for that guest.
+  4. Import/export round trip (Goldfish H): import a game JSON containing a `map_pin` question
+     through `POST /api/admin/games/import`, export it, and assert that the question's
+     `config` and `answer_data` are unchanged.
 
 ## 5. Coordination (Jack)
 - **Split:** Jack owns the other T7 type (non-Canvas, classroom).
@@ -256,3 +294,23 @@ Constraints from the codebase:
      narrow browser) at `localhost:8080/player/`.
   3. Tap and submit, then check the big-screen dots and the phone result.
   4. Download the HTML summary.
+
+
+## 8. Goldfish revision log
+
+Goldfish test run on 2026-10-03 by a fresh Claude Code session (`buzzer-72-a6`). It was given
+only this doc (pre-Goldfish commit `c9faa4d`) plus the context docs, and no source. Its
+verdict: *mostly ready, but A–F would force questions during implementation*.
+
+| # | Finding | Resolution |
+|---|---|---|
+| A | Reveal/summary JSON shapes not pinned; hand-written TS types can drift | Exact `answerReveal` JSON and TS types given. `playerAnswer` = stored `{point}`; distance computed client-side (Steps 2–3). |
+| B | COMPLETENESS questions might lack a target, breaking every reveal | Target required for both grading types. The reveal branch runs before the COMPLETENESS early return (Steps 1, 3). |
+| C | Editor has no points input for ACCURACY; admin `formToPayload` falls through to FITB | Points input shown for `map_pin` ACCURACY. The branch goes before admin's `else` (Step 7). |
+| D | Backend can't read the frontend PNG for the report | Report uses a text summary only (Step 4). |
+| E | Host Game Over would draw grid keys as bars | Map card with target and dots (Step 7). |
+| F | Player results call any partial score "Correct!" | Distance + points, no verdict; "Bullseye!" only if `isCorrect` (Step 6). |
+| G | `bool` passes numeric checks; three validators could drift | One `is_unit_point` helper in `services/map_pin.py`, used by the schema, gateway and scoring (D2). |
+| H | Import/export only implicit | Round-trip integration test (Step 12). |
+| I | `aspectRatio` source ambiguous | Required in `config`; editors always write it; the frontend reads only `config` (Step 1). |
+| J | Rounding, type labels, image `onload`, simulator flag | 2-decimal rounding (D2); `typeLabel` entries (Step 7); draw after `onload` (Step 6); `--game-json` confirmed to exist (Step 9). |
