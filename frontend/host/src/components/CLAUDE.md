@@ -12,6 +12,10 @@ primitive set under `ui/`; there are no feature-level components yet.
 - `ui/TimerBar.tsx` — Countdown bar that turns green → yellow → red, with seconds label.
   Props: `totalSeconds`, optional `initialSeconds` (for reconnect/locked resume), `paused`.
 
+- `NumericBuckets.tsx` — the `numeric` (T7) direction-of-error chart: five bars from "Way under"
+  to "Way over", from the bucket keys in the answer distribution, plus the answer and "N of M
+  within full credit". `size="large"` on results, `"card"` on game over.
+
 ## How it fits in
 Used by `../pages/` (Home, Login) and `../pages/game/` (Lobby, Question, Results, GameOver).
 All class merging goes through `../lib/utils.ts` (`cn`).

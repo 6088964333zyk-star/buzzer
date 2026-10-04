@@ -34,6 +34,12 @@ exports/reports. Routers stay thin and call into here.
   `score_map_pin` (linear falloff between `fullRadius` and `zeroRadius`, distance in
   map-width units with y divided by `aspectRatio`, 2-decimal rounding), `map_pin_cell`
   (`"cx:cy"` distribution key on a 200×100 grid) and `reveal`.
+- `numeric.py` — helpers for the `numeric` type (T7, `docs/design-t7-numeric.md`):
+  `is_finite_number` (rejects bools, NaN/Inf and ints too big for a float), `validate`
+  (schema checks with exact messages), `effective_tolerances` (applies absolute/percent),
+  `score_numeric` (linear falloff, epsilon at the boundaries, 2-decimal rounding), `bucket`
+  (`zero_low`/`partial_low`/`full`/`partial_high`/`zero_high` distribution keys), `reveal`,
+  and `format_number`/`with_unit` for the HTML report.
 - `question_service.py` — question create/update/delete/reorder shared by `routers/admin.py`
   and `routers/host.py`. Update merges onto the stored row and re-validates with
   `QuestionCreate` (422). Deleting, or changing the `type` of, an answered question → 409.
@@ -65,9 +71,10 @@ game lifecycle through `game_service` and `state_service`.
   summary functions (`get_player_question_summary`, `get_host_question_summary`);
   `websocket/gateway.py` `_answer_reveal` and the `submit_answer` payload check; and in
   `report_service.py` its own `_answer_reveal`, `_extract_answer_key` and type badge. The
-  report copies already lack a multi_select branch. `map_pin` (T7) is wired into all of
-  them; its reveal always includes the target, so its branch runs **before** the
-  COMPLETENESS early return in each `_answer_reveal` and summary.
+  report copies already lack a multi_select branch. `map_pin` and `numeric` (T7) are wired
+  into all of them; their reveals always include the answer, so their branches run **before**
+  the COMPLETENESS early return in each `_answer_reveal` and summary. The report draws
+  neither as bars: each gets a one-line text summary instead.
 - `calculate_score` assumes a well-formed payload: a non-integer `selectedIndex` or a
   non-string `text` raises, and the gateway doesn't catch it — the player gets no reply.
 - **Roster upload is a full replace (kept deliberately in T4).** Any active netid missing from

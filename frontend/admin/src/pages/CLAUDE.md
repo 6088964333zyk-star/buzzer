@@ -20,6 +20,10 @@ management. Each page is a self-contained route component that loads its own dat
   inline create/edit form (`QuestionForm`), delete, and "Export JSON". Per-type helpers
   convert between the form and the API shape: `questionToForm`, `formToPayload`, and
   `build{Mc,Tf,Ms,Fib}Payload`.
+  T7 adds `map_pin` (a `MapPicker`) and `numeric` (answer, unit, absolute/percent tolerances
+  as text fields parsed with `lib/numeric.parseNumber`, a live preview of the effective range);
+  both use the form's own points field. The host app's copy of this editor gets the same
+  changes.
 - `SessionsPage.tsx` — Sessions filtered by status; per-session CSV export with options,
   HTML report download, and delete (`DELETE /api/game/sessions/{id}`).
 

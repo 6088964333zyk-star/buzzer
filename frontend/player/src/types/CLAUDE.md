@@ -20,6 +20,7 @@ sends to a player's `user:{id}` room or the whole room. Nothing checks them agai
 - The question `type` union appears in `QuestionPayload` and `QuestionSummaryItem`, and
   `PlayerAnswerReveal` has one variant per type; `playerAnswer` lists every answer-data key.
   A new question type (T7) must update all four.
-- `config` is typed as only `{ options?; maxLength? }`.
+- `config` is typed as `{ options?; maxLength?; aspectRatio?; unit? }` (the last two for T7's
+  `map_pin` and `numeric`), in both `QuestionPayload` and `QuestionSummaryItem`.
 - `PlayerAnswerReveal` has no empty-object variant, but the server sends `{}` for a type it
   doesn't recognize — code narrowing on `.type` should tolerate that.

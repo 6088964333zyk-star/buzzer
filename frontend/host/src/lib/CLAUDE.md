@@ -7,6 +7,8 @@ Small shared helpers: the REST client and the Tailwind class-merge utility.
 - `api.ts` — `api.get` / `api.post` / `api.delete` wrapping `fetch('/api' + path)`. Adds the
   `Authorization: Bearer` header from `localStorage.token`, throws `Error(detail)` on non-2xx,
   and returns `{}` for empty bodies (e.g. 204).
+- `numeric.ts` — copy of the player app's `numeric` helpers (T7): parsing for the question
+  editor, formatting for the results screens.
 - `utils.ts` — `cn(...)` = `clsx` + `tailwind-merge`.
 
 ## How it fits in

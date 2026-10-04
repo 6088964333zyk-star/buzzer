@@ -10,6 +10,8 @@ class-merge utility.
   - `postForm(path, FormData)` — multipart upload; omits `Content-Type` so the browser sets the boundary.
   - `download(path)` — authenticated `fetch` → blob → temporary `<a download>`, using the
     filename from `Content-Disposition`.
+- `numeric.ts` — `parseNumber` / `formatNumber` / `withUnit` for the `numeric` (T7) fields in
+  `QuestionEditorPage` (copied from the player app).
 - `utils.ts` — `cn(...)` = `clsx` + `tailwind-merge`.
 
 ## How it fits in
