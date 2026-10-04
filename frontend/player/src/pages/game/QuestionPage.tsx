@@ -4,6 +4,7 @@ import { TimerBar } from '../../components/ui/TimerBar';
 import { MapCanvas } from '../../components/MapCanvas';
 import type { MapPoint } from '../../lib/mapPin';
 import { parseNumber, withUnit } from '../../lib/numeric';
+import { imageUrl } from '../../lib/images';
 
 const OPTION_COLORS = [
   'bg-red-600 hover:bg-red-500 border-red-500',
@@ -18,6 +19,25 @@ const OPTION_COLORS = [
 
 function optionLabel(i: number): string {
   return String.fromCharCode(65 + i); // A, B, C, … Z
+}
+
+// ---- option images (docs/design-t8-images.md D4) ----
+
+/** Per-option image ids when any option has one (tile layout), else null (list layout). */
+function tileImages(ids: (string | null)[] | undefined, count: number): (string | null)[] | null {
+  if (!ids || !ids.some((id) => id)) return null;
+  return Array.from({ length: count }, (_, i) => ids[i] ?? null);
+}
+
+/** Square image area of a tile; a tile without an image keeps the same height (Goldfish 12). */
+function OptionTileImage({ id, text }: { id: string | null; text: string }) {
+  return id ? (
+    <img src={imageUrl(id)} alt={text} className="w-full aspect-square object-contain rounded-xl bg-black/20" />
+  ) : (
+    <span className="w-full aspect-square rounded-xl bg-black/20 flex items-center justify-center text-center px-2 text-base">
+      {text}
+    </span>
+  );
 }
 
 export default function QuestionPage() {
@@ -65,25 +85,31 @@ export default function QuestionPage() {
 
   if (currentQuestion.type === 'multiple_choice') {
     const options = currentQuestion.config.options ?? [];
+    const images = tileImages(currentQuestion.config.optionImages, options.length);
     return (
       <div className="py-6 px-4 flex flex-col gap-3">
         <div className="pb-2">
           {questionLabel}
           <TimerBar key={currentQuestion.questionId} totalSeconds={currentQuestion.timeLimitSeconds} paused={questionLocked} />
         </div>
-        {options.map((opt, i) => (
-          <button
-            key={i}
-            disabled={submitted || questionLocked}
-            onClick={() => submit({ selectedIndex: i })}
-            className={`w-full flex items-center gap-4 rounded-2xl px-5 py-4 text-left text-white font-semibold text-lg border-2 transition-all
-              ${submitted || questionLocked ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}
-              ${OPTION_COLORS[i % OPTION_COLORS.length]}`}
-          >
-            <span className="text-2xl font-black w-8 shrink-0">{optionLabel(i)}</span>
-            <span>{opt}</span>
-          </button>
-        ))}
+        <div className={images ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
+          {options.map((opt, i) => (
+            <button
+              key={i}
+              disabled={submitted || questionLocked}
+              onClick={() => submit({ selectedIndex: i })}
+              className={`w-full flex ${images ? 'flex-col p-2 gap-2' : 'items-center gap-4 px-5 py-4'} rounded-2xl text-left text-white font-semibold text-lg border-2 transition-all
+                ${submitted || questionLocked ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}
+                ${OPTION_COLORS[i % OPTION_COLORS.length]}`}
+            >
+              {images && <OptionTileImage id={images[i]} text={opt} />}
+              <span className="flex items-center gap-2">
+                <span className={`${images ? 'text-lg' : 'text-2xl w-8'} font-black shrink-0`}>{optionLabel(i)}</span>
+                <span>{opt}</span>
+              </span>
+            </button>
+          ))}
+        </div>
         {submitted && <p className="text-center text-slate-400 text-sm mt-4">Answer submitted — waiting for results…</p>}
         {!submitted && questionLocked && lockedMsg}
       </div>
@@ -168,6 +194,7 @@ export default function QuestionPage() {
 
   if (currentQuestion.type === 'multi_select') {
     const options = currentQuestion.config.options ?? [];
+    const msImages = tileImages(currentQuestion.config.optionImages, options.length);
     return (
       <div className="py-6 px-4 flex flex-col gap-3">
         <div className="pb-2">
@@ -175,6 +202,7 @@ export default function QuestionPage() {
           <TimerBar key={currentQuestion.questionId} totalSeconds={currentQuestion.timeLimitSeconds} paused={questionLocked} />
         </div>
         <p className="text-center text-slate-400 text-sm">Select all that apply</p>
+        <div className={msImages ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
         {options.map((opt, i) => {
           const isSelected = selectedIndices.has(i);
           return (
@@ -182,21 +210,25 @@ export default function QuestionPage() {
               key={i}
               disabled={submitted || questionLocked}
               onClick={() => toggleIndex(i)}
-              className={`w-full flex items-center gap-4 rounded-2xl px-5 py-4 text-left font-semibold text-lg border-2 transition-all
+              className={`w-full flex ${msImages ? 'flex-col p-2 gap-2' : 'items-center gap-4 px-5 py-4'} rounded-2xl text-left font-semibold text-lg border-2 transition-all
                 ${submitted || questionLocked ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}
                 ${isSelected
                   ? 'bg-indigo-600 border-indigo-400 text-white'
                   : 'bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600'
                 }`}
             >
+              {msImages && <OptionTileImage id={msImages[i]} text={opt} />}
+              <span className="flex items-center gap-3">
               <span className={`text-xl font-black w-8 shrink-0 flex items-center justify-center rounded-md border-2 transition-colors
                 ${isSelected ? 'border-white bg-white text-indigo-700' : 'border-slate-500 text-slate-400'}`}>
                 {isSelected ? '✓' : optionLabel(i)}
               </span>
               <span>{opt}</span>
+              </span>
             </button>
           );
         })}
+        </div>
         {!submitted && !questionLocked && (
           <button
             disabled={selectedIndices.size === 0}
@@ -309,6 +341,7 @@ export default function QuestionPage() {
         </p>
         <MapCanvas
           aspectRatio={currentQuestion.config.aspectRatio ?? 2}
+          imageUrl={currentQuestion.config.mapImageId ? imageUrl(currentQuestion.config.mapImageId) : null}
           point={mapPoint}
           onPoint={locked ? undefined : setMapPoint}
         />
