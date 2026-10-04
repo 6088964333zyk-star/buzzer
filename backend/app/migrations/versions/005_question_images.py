@@ -45,8 +45,17 @@ def upgrade() -> None:
         sa.Column("width", sa.Integer(), nullable=False),
         sa.Column("height", sa.Integer(), nullable=False),
         sa.Column("sha256", sa.String(64), nullable=False),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now()),
+        # Microseconds, so the library (and export refs) keep upload order.
+        sa.Column(
+            "created_at",
+            mysql.DATETIME(fsp=6),
+            server_default=sa.text("CURRENT_TIMESTAMP(6)"),
+        ),
+        sa.Column(
+            "updated_at",
+            mysql.DATETIME(fsp=6),
+            server_default=sa.text("CURRENT_TIMESTAMP(6)"),
+        ),
     )
     op.create_index("ix_question_images_game_id", "question_images", ["game_id"])
 

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, func, text
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, deferred, mapped_column
 
 from ..database import Base
+
+_DATETIME6 = DateTime().with_variant(mysql.DATETIME(fsp=6), "mysql")
 
 
 class QuestionImage(Base):
@@ -34,7 +36,12 @@ class QuestionImage(Base):
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Microsecond precision so listing order (and export refs) is upload order.
+    created_at: Mapped[datetime] = mapped_column(
+        _DATETIME6, server_default=text("CURRENT_TIMESTAMP(6)")
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        _DATETIME6,
+        server_default=text("CURRENT_TIMESTAMP(6)"),
+        onupdate=func.now(6),
     )
