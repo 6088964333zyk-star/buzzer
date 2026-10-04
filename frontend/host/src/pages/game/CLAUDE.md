@@ -18,7 +18,9 @@ the Socket.io connection; four child pages render whichever phase the server say
   1.5 s after `answer_phase_ended` when auto-advance is on.
 - `ResultsPage.tsx` — Per-question results: bar chart (MC, TF, multi-select, completeness) or
   word cloud (fill-in-the-blank, colored with a local Levenshtein against accepted answers).
-  Next / Show Final Results button; 10 s countdown when auto-advance is on.
+  Next / Show Final Results button; 10 s countdown when auto-advance is on. `map_pin` (T7)
+  draws guesses on a map; `numeric` (T7) uses `components/NumericBuckets` instead of option
+  bars, and its game-over card does too.
 - `GameOverPage.tsx` — Anonymous score histogram (buckets from `maxPossibleScore`) and one
   summary card per question (distribution, correct %, average answer time). "New Game" button.
 

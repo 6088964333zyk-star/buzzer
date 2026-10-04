@@ -9,6 +9,8 @@ Small shared helpers: the REST client and the Tailwind class-merge utility.
   `localStorage.token`, throws `Error` with the server's `message` (BuzzerError) or string
   `detail` on non-2xx, and returns `{}` for empty bodies (e.g. 204). `download` fetches a blob
   with the auth header and saves it under the `Content-Disposition` filename.
+- `numeric.ts` — copy of the player app's `numeric` helpers (T7): parsing for the question
+  editor, formatting for the results screens.
 - `utils.ts` — `cn(...)` = `clsx` + `tailwind-merge`.
 
 ## How it fits in

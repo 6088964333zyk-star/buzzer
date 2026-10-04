@@ -23,6 +23,9 @@ All question types are handled automatically:
                       answers from --fitb-words
   map_pin           — random point on the map; if --game-json supplied,
                       accurate players pin near the target
+  numeric           — random value in [-1, 1]; if --game-json supplied,
+                      accurate players guess near the answer, others anywhere
+                      within 3x the zero-credit tolerance
 
 Usage:
     # Basic — 20 players, default profile mix, default FITB word pool
@@ -271,6 +274,20 @@ class SimPlayer:
                 x, y = random.random(), random.random()
             return {"point": {"x": min(1, max(0, x)), "y": min(1, max(0, y))}}
 
+        if q_type == "numeric":
+            # docs/design-t7-numeric.md Step 8. Effective tolerances apply
+            # toleranceMode, as backend services/numeric.effective_tolerances.
+            ad = (jq or {}).get("answer_data", {})
+            answer = ad.get("answer")
+            if not isinstance(answer, (int, float)) or isinstance(answer, bool):
+                return {"value": round(random.uniform(-1, 1), 3)}
+            scale = abs(answer) / 100 if ad.get("toleranceMode") == "percent" else 1
+            full = float(ad.get("fullTolerance", 0)) * scale
+            zero = float(ad.get("zeroTolerance", 1)) * scale
+            if random.random() < p.accuracy:
+                return {"value": answer + random.gauss(0, full / 2)}
+            return {"value": random.uniform(answer - 3 * zero, answer + 3 * zero)}
+
         return None  # unknown type
 
     def _answer_str(self, answer: dict) -> str:
@@ -282,6 +299,8 @@ class SimPlayer:
             return f"options {answer['selectedIndices']}"
         if "selectedValue" in answer:
             return str(answer["selectedValue"])
+        if "value" in answer:
+            return f"value {answer['value']:.4g}"
         if "point" in answer:
             pt = answer["point"]
             return f"pin ({pt['x']:.2f}, {pt['y']:.2f})"

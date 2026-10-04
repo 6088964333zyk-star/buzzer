@@ -14,6 +14,8 @@ and the Tailwind class-merge utility.
     filename from `Content-Disposition`.
 - `auth.ts` — `getTokenClaims()` decodes (doesn't verify) `localStorage.token`'s `role` and `exp`;
   used by `RequireAdmin` in `../App.tsx`. Decoding copied from the player app's `isTokenExpired`.
+- `numeric.ts` — `parseNumber` / `formatNumber` / `withUnit` for the `numeric` (T7) fields in
+  `QuestionEditorPage` (copied from the player app).
 - `utils.ts` — `cn(...)` = `clsx` + `tailwind-merge`.
 
 ## How it fits in

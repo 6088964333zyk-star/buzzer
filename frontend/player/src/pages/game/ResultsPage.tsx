@@ -1,7 +1,8 @@
 import { useGame } from './GameLayout';
 import { MapCanvas } from '../../components/MapCanvas';
 import { formatPct, mapDistance, type MapPoint } from '../../lib/mapPin';
-import type { MapPinReveal } from '../../types/game';
+import { describeOffBy, isFullCredit, withUnit } from '../../lib/numeric';
+import type { MapPinReveal, NumericReveal } from '../../types/game';
 
 /** map_pin results: distance + points, no Correct/Incorrect (design Goldfish F). */
 function MapPinResult({ reveal, point, points, completeness }: {
@@ -25,6 +26,37 @@ function MapPinResult({ reveal, point, points, completeness }: {
         target={reveal.target}
         fullRadius={reveal.fullRadius}
       />
+      <p className="text-slate-100 text-3xl font-bold">+{points.toLocaleString()} pts</p>
+    </div>
+  );
+}
+
+/**
+ * numeric results (docs/design-t7-numeric.md N7). question_results has no
+ * isCorrect, so "Spot on!" is computed here with the server's rule. Without the
+ * player's own value (after a reload) there's no verdict and no "off by".
+ */
+function NumericResult({ reveal, value, points, completeness }: {
+  reveal: NumericReveal; value: number | null; points: number; completeness: boolean;
+}) {
+  return (
+    <div className="w-full max-w-md flex flex-col gap-3">
+      {completeness ? (
+        <p className="text-indigo-400 text-4xl font-black">Recorded!</p>
+      ) : value !== null && isFullCredit(value, reveal) ? (
+        <p className="text-green-400 text-4xl font-black">Spot on!</p>
+      ) : null}
+      {value !== null && (
+        <p className="text-slate-300 text-lg">
+          You: <span className="font-semibold text-white">{withUnit(value, reveal.unit)}</span>
+        </p>
+      )}
+      <p className="text-slate-300 text-lg">
+        Answer: <span className="font-semibold text-green-400">{withUnit(reveal.answer, reveal.unit)}</span>
+      </p>
+      {value !== null && (
+        <p className="text-slate-400 text-base">off by {describeOffBy(value, reveal)}</p>
+      )}
       <p className="text-slate-100 text-3xl font-bold">+{points.toLocaleString()} pts</p>
     </div>
   );
@@ -86,6 +118,29 @@ export default function ResultsPage() {
       </div>
     );
   }
+  if (answerReveal.type === 'numeric') {
+    const v = lastAnswerData?.value;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 gap-5 text-center">
+        <NumericResult
+          reveal={answerReveal}
+          value={typeof v === 'number' ? v : null}
+          points={yourPoints}
+          completeness={currentQuestion?.gradingType === 'COMPLETENESS'}
+        />
+        <div className="mt-2 space-y-1">
+          <p className="text-slate-300 text-lg">
+            Total: <span className="font-bold text-white">{yourScore.toLocaleString()}</span> pts
+          </p>
+          <p className="text-slate-400 text-base">
+            Rank <span className="font-bold text-white">#{yourRank}</span> of {playerCount}
+          </p>
+        </div>
+        <p className="text-slate-500 text-sm mt-4">Waiting for next question…</p>
+      </div>
+    );
+  }
+
   const answeredLabel = describeAnswer(
     lastAnswerData,
     currentQuestion?.type ?? '',

@@ -9,7 +9,7 @@ export interface PlayerJoinedPayload {
 }
 
 export type QuestionType =
-  | 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin';
+  | 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin' | 'numeric';
 
 export interface MapPinReveal {
   type: 'map_pin';
@@ -19,6 +19,16 @@ export interface MapPinReveal {
   aspectRatio: number;
 }
 
+/** Matches backend services/numeric.reveal exactly (docs/design-t7-numeric.md Step 1). */
+export interface NumericReveal {
+  type: 'numeric';
+  answer: number;
+  toleranceMode: 'absolute' | 'percent';
+  fullTolerance: number;
+  zeroTolerance: number;
+  unit: string | null;
+}
+
 export interface QuestionPayload {
   questionId: number;
   questionNumber: number;
@@ -26,7 +36,7 @@ export interface QuestionPayload {
   type: QuestionType;
   prompt: string;
   gradingType?: 'ACCURACY' | 'COMPLETENESS';
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number };
+  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
   timeLimitSeconds: number;
   pointsValue: number;
 }
@@ -45,7 +55,8 @@ export type PlayerAnswerReveal =
   | { type: 'fill_in_the_blank'; acceptedAnswers: string[]; editDistance: number }
   | { type: 'completeness' }
   | { type: 'multi_select'; answerPoints: number[] }
-  | MapPinReveal;
+  | MapPinReveal
+  | NumericReveal;
 
 export interface PlayerResultsPayload {
   questionId: number;
@@ -61,7 +72,7 @@ export interface QuestionSummaryItem {
   prompt: string;
   type: QuestionType;
   gradingType: 'ACCURACY' | 'COMPLETENESS';
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number };
+  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
   pointsAwarded: number;
   maxPoints: number;
   answerTimeMs: number | null;
@@ -71,6 +82,7 @@ export interface QuestionSummaryItem {
     text?: string;
     selectedIndices?: number[];
     point?: { x: number; y: number };
+    value?: number;
   } | null;
   answerReveal: PlayerAnswerReveal;
 }
