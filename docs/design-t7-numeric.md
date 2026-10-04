@@ -196,8 +196,9 @@ Definitions for the numbers above:
   is `"full"` (not `is_correct`, which is always true under COMPLETENESS); U = `zero_low` +
   `partial_low`; O = `partial_high` + `zero_high`. Full-credit answers count in neither U nor O.
   The host screen's "N of M" uses the same F and T.
-- **"Median guess"**: the median of valid stored values (the lower middle value when the count is
-  even, as map_pin's report does). Omitted when there are 0 guesses.
+- **"Median guess"**: the median of valid stored values: `sorted(values)[len // 2]`, i.e. the
+  upper middle value when the count is even, as map_pin's report does (corrected during
+  implementation; the draft said "lower"). Omitted when there are 0 guesses.
 - **"off by"**: `formatNumber(|value − answer|)` plus the unit. In percent mode, followed by the
   relative error to one decimal, e.g. "off by 17 m/s (5.0%)".
 - **Empty chart** (0 answers): all bars at zero height, the counts show 0, and the text reads

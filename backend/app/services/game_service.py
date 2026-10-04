@@ -17,7 +17,7 @@ from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
 from ..models.user import User
 from ..schemas.game import ScoreResult
-from . import map_pin
+from . import map_pin, numeric
 from . import state_service as state
 
 logger = structlog.get_logger()
@@ -336,6 +336,17 @@ def calculate_score(question: Question, answer_data: dict) -> ScoreResult:
         )
         return ScoreResult(points_awarded=points, is_correct=correct)
 
+    if question.type == "numeric":
+        value = answer_data.get("value")
+        if not numeric.is_finite_number(value):
+            return ScoreResult(points_awarded=0, is_correct=False)
+        if question.grading_type == "COMPLETENESS":
+            return ScoreResult(points_awarded=question.points_value, is_correct=True)
+        points, correct = numeric.score_numeric(
+            value, question.answer_data, question.points_value
+        )
+        return ScoreResult(points_awarded=points, is_correct=correct)
+
     if question.grading_type == "COMPLETENESS":
         return ScoreResult(points_awarded=question.points_value, is_correct=True)
 
@@ -454,6 +465,10 @@ async def record_answer(
         point = answer_data.get("point")
         if map_pin.is_unit_point(point):
             dist_key = map_pin.map_pin_cell(point)
+    elif question.type == "numeric":
+        value = answer_data.get("value")
+        if numeric.is_finite_number(value):
+            dist_key = numeric.bucket(value, question.answer_data)
     elif question.type == "multi_select":
         indices = answer_data.get("selectedIndices")
         if isinstance(indices, list):
@@ -532,6 +547,8 @@ async def get_player_question_summary(
         # map_pin always reveals its target, even for COMPLETENESS (design Step 3).
         if q_type == "map_pin":
             reveal: dict = map_pin.reveal(q_ans, r.config or {})
+        elif q_type == "numeric":  # always reveals its answer (design N7)
+            reveal = numeric.reveal(q_ans, r.config or {})
         elif grading_type == "COMPLETENESS":
             reveal = {"type": "completeness"}
         elif q_type == "multiple_choice":
@@ -644,6 +661,8 @@ async def get_host_question_summary(
 
         if q_type == "map_pin":
             reveal: dict = map_pin.reveal(q_ans, q["config"])
+        elif q_type == "numeric":  # always reveals its answer (design N7)
+            reveal = numeric.reveal(q_ans, q["config"])
         elif grading_type == "COMPLETENESS":
             reveal = {"type": "completeness"}
         elif q_type == "multiple_choice":
@@ -704,6 +723,11 @@ async def get_host_question_summary(
                     point = ans.get("point")
                     if map_pin.is_unit_point(point):
                         k = map_pin.map_pin_cell(point)
+                        dist[k] = dist.get(k, 0) + 1
+                elif q_type == "numeric":
+                    value = ans.get("value")
+                    if numeric.is_finite_number(value):
+                        k = numeric.bucket(value, q_ans)
                         dist[k] = dist.get(k, 0) + 1
             if s["is_correct"]:
                 correct_count += 1

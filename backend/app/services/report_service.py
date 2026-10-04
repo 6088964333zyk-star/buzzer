@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.course import Course
 from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
-from . import map_pin
+from . import map_pin, numeric
 
 
 # ---------------------------------------------------------------------------
@@ -48,6 +48,8 @@ def _answer_reveal(q: Question) -> dict:
     """Mirror of gateway._answer_reveal — derive correct-answer facts from answer_data."""
     if q.type == "map_pin":
         return map_pin.reveal(q.answer_data, q.config)
+    if q.type == "numeric":
+        return numeric.reveal(q.answer_data, q.config)
     if q.grading_type == "COMPLETENESS":
         return {"type": "completeness"}
     if q.type == "multiple_choice":
@@ -71,8 +73,13 @@ def _answer_reveal(q: Question) -> dict:
     return {}
 
 
-def _extract_answer_key(q_type: str, answer_data: dict | None) -> str | None:
-    """Convert a player's answer_data blob into the distribution key used for charting."""
+def _extract_answer_key(
+    q_type: str, answer_data: dict | None, q_answer_data: dict | None = None
+) -> str | None:
+    """Convert a player's answer_data blob into the distribution key used for charting.
+
+    q_answer_data (the question's answer key) is needed only for numeric buckets.
+    """
     if not answer_data:
         return None
     if q_type == "multiple_choice":
@@ -87,7 +94,40 @@ def _extract_answer_key(q_type: str, answer_data: dict | None) -> str | None:
     if q_type == "map_pin":
         point = answer_data.get("point")
         return map_pin.map_pin_cell(point) if map_pin.is_unit_point(point) else None
+    if q_type == "numeric":
+        value = answer_data.get("value")
+        if numeric.is_finite_number(value) and q_answer_data:
+            return numeric.bucket(value, q_answer_data)
+        return None
     return None
+
+
+def _render_numeric_summary(q: Question, scores: list) -> str:
+    """One text line instead of a bar chart, so bucket keys are never drawn as
+    bars (docs/design-t7-numeric.md N7): answer, guesses, full credit, median,
+    under/over."""
+    unit = (q.config or {}).get("unit") or None
+    answer = q.answer_data.get("answer")
+    if not numeric.is_finite_number(answer):
+        return ""
+    values = [
+        s.answer_data["value"]
+        for s in scores
+        if s.answer_data and numeric.is_finite_number(s.answer_data.get("value"))
+    ]
+    keys = [numeric.bucket(v, q.answer_data) for v in values]
+    parts = [
+        f"Answer {numeric.with_unit(answer, unit)}",
+        f"{len(values)} guess{'es' if len(values) != 1 else ''}",
+    ]
+    if values:
+        median = sorted(values)[len(values) // 2]  # upper middle when even, as map_pin
+        under = sum(1 for k in keys if k in ("zero_low", "partial_low"))
+        over = sum(1 for k in keys if k in ("partial_high", "zero_high"))
+        parts.append(f"{keys.count('full')} within full credit")
+        parts.append(f"median guess {numeric.with_unit(median, unit)}")
+        parts.append(f"{under} under / {over} over")
+    return f'<p class="q-stats">{_esc(" · ".join(parts))}</p>'
 
 
 def _render_map_summary(q: Question, scores: list) -> str:
@@ -460,7 +500,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
 
         dist: dict[str, int] = defaultdict(int)
         for s in q_scores:
-            key = _extract_answer_key(q.type, s.answer_data)
+            key = _extract_answer_key(q.type, s.answer_data, q.answer_data)
             if key is not None:
                 dist[key] += 1
 
@@ -472,6 +512,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
             "true_false": ("True / False", "badge-tf"),
             "fill_in_the_blank": ("Fill in the Blank", "badge-fitb"),
             "map_pin": ("Map Pin", "badge-fitb"),
+            "numeric": ("Numeric", "badge-fitb"),
         }.get(q.type, (q.type, ""))
         type_label, type_class = type_badge
 
@@ -487,6 +528,8 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
             chart = _render_word_cloud(q, dict(dist), reveal)
         elif q.type == "map_pin":
             chart = _render_map_summary(q, q_scores)
+        elif q.type == "numeric":
+            chart = _render_numeric_summary(q, q_scores)
         else:
             chart = ""
 
