@@ -13,8 +13,9 @@ import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
 import { MapPicker } from '../../components/MapPicker';
 import type { MapPoint } from '../../lib/mapPin';
+import { formatNumber, parseNumber, withUnit } from '../../lib/numeric';
 
-type QuestionType = 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin';
+type QuestionType = 'multiple_choice' | 'true_false' | 'fill_in_the_blank' | 'multi_select' | 'map_pin' | 'numeric';
 type GradingType = 'ACCURACY' | 'COMPLETENESS';
 
 interface Question {
@@ -91,6 +92,12 @@ interface FormState {
   mapTarget: MapPoint | null;
   mapFullRadius: number;
   mapZeroRadius: number;
+  // numeric (docs/design-t7-numeric.md N8): text fields parsed with parseNumber
+  numAnswer: string;
+  numMode: 'absolute' | 'percent';
+  numFull: string;
+  numZero: string;
+  numUnit: string;
 }
 
 const defaultForm = (): FormState => ({
@@ -108,6 +115,12 @@ const defaultForm = (): FormState => ({
   mapTarget: null,
   mapFullRadius: 0.02,
   mapZeroRadius: 0.15,
+  // Stats-tuned defaults: a correlation within ±0.05 is full credit.
+  numAnswer: '',
+  numMode: 'absolute',
+  numFull: '0.05',
+  numZero: '0.15',
+  numUnit: '',
 });
 
 function questionToForm(q: Question): FormState {
@@ -144,6 +157,14 @@ function questionToForm(q: Question): FormState {
     base.mapTarget = (q.answer_data['target'] as MapPoint | undefined) ?? null;
     base.mapFullRadius = (q.answer_data['fullRadius'] as number | undefined) ?? 0.02;
     base.mapZeroRadius = (q.answer_data['zeroRadius'] as number | undefined) ?? 0.15;
+  } else if (q.type === 'numeric') {
+    // String(n) round-trips exactly; formatNumber would round on re-save (design Step 7).
+    const ad = q.answer_data;
+    base.numAnswer = typeof ad['answer'] === 'number' ? String(ad['answer']) : '';
+    base.numMode = ad['toleranceMode'] === 'percent' ? 'percent' : 'absolute';
+    base.numFull = typeof ad['fullTolerance'] === 'number' ? String(ad['fullTolerance']) : '0.05';
+    base.numZero = typeof ad['zeroTolerance'] === 'number' ? String(ad['zeroTolerance']) : '0.15';
+    base.numUnit = typeof q.config['unit'] === 'string' ? q.config['unit'] : '';
   }
   return base;
 }
@@ -167,6 +188,22 @@ function formToPayload(form: FormState) {
     const p = buildMsPayload(msOptions);
     config = p.config;
     answer_data = p.answer_data;
+  } else if (form.type === 'numeric') {
+    // Mirrors the server's checks (design N1); its 422 is still the real check.
+    const answer = parseNumber(form.numAnswer);
+    const full = parseNumber(form.numFull);
+    const zero = parseNumber(form.numZero);
+    const unit = form.numUnit.trim();
+    if (answer === null) throw new Error('Enter the answer as a number, e.g. 0.62 or 6.02e23.');
+    if (full === null || zero === null || full < 0 || full >= zero) {
+      throw new Error('Tolerances must be numbers with 0 ≤ full credit < zero credit.');
+    }
+    if (form.numMode === 'percent' && answer === 0) {
+      throw new Error('Percent tolerance needs a non-zero answer; use ± absolute.');
+    }
+    if (unit.length > 20) throw new Error('Unit must be at most 20 characters.');
+    config = unit ? { unit } : {};
+    answer_data = { answer, toleranceMode: form.numMode, fullTolerance: full, zeroTolerance: zero };
   } else if (form.type === 'map_pin') {
     // Target is required for both grading types (Goldfish B); aspectRatio is
     // always written so config is the single source of truth (Goldfish I).
@@ -187,7 +224,7 @@ function formToPayload(form: FormState) {
   }
   const points_value =
     // map_pin points don't come from per-option values (Goldfish C).
-    form.grading === 'COMPLETENESS' || form.type === 'map_pin'
+    form.grading === 'COMPLETENESS' || form.type === 'map_pin' || form.type === 'numeric'
       ? form.pointsValue
       : form.type === 'multiple_choice'
       ? Math.max(0, ...form.mcOptions.map((o) => o.points))
@@ -205,6 +242,82 @@ function formToPayload(form: FormState) {
     time_limit_seconds: form.timeLimitSeconds,
     points_value,
   };
+}
+
+// ---- numeric (docs/design-t7-numeric.md N8) ----
+
+/** "≈ 0.62 (±0.05 / ±0.15)" or "≈ 343 m/s (±5% / ±20%)". */
+function numericListPreview(ad: Record<string, unknown>, config: Record<string, unknown>): string {
+  const answer = ad['answer'];
+  if (typeof answer !== 'number') return '';
+  const unit = typeof config['unit'] === 'string' ? config['unit'] : null;
+  const pct = ad['toleranceMode'] === 'percent' ? '%' : '';
+  return `≈ ${withUnit(answer, unit)} (±${String(ad['fullTolerance'])}${pct} / ±${String(ad['zeroTolerance'])}${pct})`;
+}
+
+function NumericFields({ form, set }: {
+  form: FormState;
+  set: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+}) {
+  const answer = parseNumber(form.numAnswer);
+  const full = parseNumber(form.numFull);
+  const zero = parseNumber(form.numZero);
+  const unit = form.numUnit.trim() || null;
+  const pct = form.numMode === 'percent';
+  // The preview shows the effective range so a tiny range near zero is noticed (design §6).
+  const abs = (t: number) => (answer !== null && answer !== 0 ? ` (±${withUnit(Math.abs(answer) * t / 100, unit)})` : '');
+  const preview = full === null || zero === null
+    ? 'Enter both tolerances as numbers.'
+    : pct
+    ? `Full credit within ±${formatNumber(full)}%${abs(full)}; nothing beyond ±${formatNumber(zero)}%${abs(zero)}`
+    : `Full credit within ±${withUnit(full, unit)}; nothing beyond ±${withUnit(zero, unit)}`;
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-3 flex-wrap">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Answer</label>
+          <Input
+            value={form.numAnswer}
+            onChange={(e) => set('numAnswer', e.target.value)}
+            placeholder="e.g. 0.62"
+            className="w-40 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Unit (optional)</label>
+          <Input
+            value={form.numUnit}
+            onChange={(e) => set('numUnit', e.target.value)}
+            placeholder="e.g. m/s"
+            maxLength={20}
+            className="w-32 text-sm"
+          />
+        </div>
+      </div>
+      <div className="flex gap-3 flex-wrap items-end">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Tolerance</label>
+          <select
+            className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 text-sm"
+            value={form.numMode}
+            onChange={(e) => set('numMode', e.target.value as 'absolute' | 'percent')}
+          >
+            <option value="absolute">± absolute</option>
+            <option value="percent">± percent of answer</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Full credit within ±{pct ? ' %' : ''}</label>
+          <Input value={form.numFull} onChange={(e) => set('numFull', e.target.value)} className="w-28 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Zero credit beyond ±{pct ? ' %' : ''}</label>
+          <Input value={form.numZero} onChange={(e) => set('numZero', e.target.value)} className="w-28 text-sm" />
+        </div>
+      </div>
+      <p className="text-xs text-slate-400">{preview}</p>
+    </div>
+  );
 }
 
 function QuestionForm({
@@ -240,6 +353,7 @@ function QuestionForm({
             <option value="fill_in_the_blank">Fill in the Blank</option>
             <option value="multi_select">Multi-Select (Select All That Apply)</option>
             <option value="map_pin">Map Pin (tap the location)</option>
+            <option value="numeric">Numeric Estimate (type a number)</option>
           </select>
         </div>
         <div className="flex-1">
@@ -397,6 +511,10 @@ function QuestionForm({
         </div>
       )}
 
+      {form.type === 'numeric' && (
+        <NumericFields form={form} set={set} />
+      )}
+
       {form.type === 'map_pin' && (
         <MapPicker
           value={{ target: form.mapTarget, fullRadius: form.mapFullRadius, zeroRadius: form.mapZeroRadius }}
@@ -519,7 +637,7 @@ function QuestionForm({
             max="300"
           />
         </div>
-        {(form.grading === 'COMPLETENESS' || form.type === 'map_pin') && (
+        {(form.grading === 'COMPLETENESS' || form.type === 'map_pin' || form.type === 'numeric') && (
           <div>
             <label className="block text-xs text-slate-400 mb-1">Points value</label>
             <Input
@@ -644,6 +762,7 @@ export default function QuestionEditorPage() {
     fill_in_the_blank: 'Fill',
     multi_select: 'Multi',
     map_pin: 'Map',
+    numeric: 'Num',
   };
 
   if (loading) return <div className="p-8 text-slate-400">Loading\u2026</div>;
@@ -776,6 +895,12 @@ export default function QuestionEditorPage() {
                       {(q.answer_data['editDistance'] as number) > 0 && (
                         <span className="ml-2 text-slate-500">(\u00b1{q.answer_data['editDistance'] as number} edit distance)</span>
                       )}
+                    </div>
+                  )}
+
+                  {q.type === 'numeric' && (
+                    <div className="mt-2 text-xs text-slate-400">
+                      {numericListPreview(q.answer_data, q.config)}
                     </div>
                   )}
 

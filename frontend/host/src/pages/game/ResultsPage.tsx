@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NumericBuckets } from '../../components/NumericBuckets';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import type { AnswerReveal } from '../../types/game';
@@ -245,6 +246,12 @@ export default function ResultsPage() {
       ? questionResults.answerReveal
       : null;
 
+  const numericReveal =
+    questionResults && 'type' in questionResults.answerReveal &&
+    questionResults.answerReveal.type === 'numeric'
+      ? questionResults.answerReveal
+      : null;
+
   const bars =
     !isFitb && questionResults
       ? buildBars(
@@ -279,6 +286,11 @@ export default function ResultsPage() {
             {questionResults.totalAnswered} / {questionResults.totalPlayers} guessed · green pin is the answer
           </p>
         </div>
+      ) : questionResults && numericReveal ? (
+        <NumericBuckets
+          reveal={numericReveal}
+          distribution={questionResults.answerDistribution}
+        />
       ) : questionResults && isFitb ? (
         <WordCloud
           distribution={questionResults.answerDistribution}
