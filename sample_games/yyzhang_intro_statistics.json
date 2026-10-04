@@ -104,6 +104,24 @@
       "points_value": 1.0
     },
     {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "For a 95% two-sided confidence interval using the normal distribution, what is the critical value z*?",
+      "config": {},
+      "answer_data": { "answer": 1.96, "toleranceMode": "absolute", "fullTolerance": 0.01, "zeroTolerance": 0.5 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "In a normal distribution, roughly what percentage of values lie within one standard deviation of the mean?",
+      "config": { "unit": "%" },
+      "answer_data": { "answer": 68.27, "toleranceMode": "absolute", "fullTolerance": 1, "zeroTolerance": 15 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
       "type": "multiple_choice",
       "grading_type": "COMPLETENESS",
       "prompt": "Which topic so far feels the hardest to you?",

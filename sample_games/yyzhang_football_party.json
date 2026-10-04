@@ -107,6 +107,24 @@
       "points_value": 1.0
     },
     {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "Guess the number: how many goals did Lionel Messi score in the 2012 calendar year (club and country)?",
+      "config": { "unit": "goals" },
+      "answer_data": { "answer": 91, "toleranceMode": "absolute", "fullTolerance": 3, "zeroTolerance": 30 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "Guess the year: when was FIFA founded?",
+      "config": {},
+      "answer_data": { "answer": 1904, "toleranceMode": "absolute", "fullTolerance": 0, "zeroTolerance": 30 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
       "type": "multiple_choice",
       "grading_type": "COMPLETENESS",
       "prompt": "Which league would you most like to watch this weekend?",
