@@ -3,8 +3,9 @@
 **Owner:** Jack Mayerhofer (jmayerhofer). The team's other T7 type is `map_pin` (Bill Zhang,
 `docs/design-t7-map-question.md`, MR !6): Canvas-based, party. This one is the **classroom**
 type and is not Canvas-based.
-**Status:** Revised after Goldfish round 1 (2026-10-04, fresh Claude Code session). The
-pre-Goldfish draft is commit `9d5994c`. See *§7 Goldfish revision log*.
+**Status:** Revised after Goldfish rounds 1 and 2 (2026-10-04, two fresh Claude Code sessions).
+The pre-Goldfish draft is commit `9d5994c`; the round-1 revision is `ee0ff9b`. See *§7 Goldfish
+revision log*.
 **Branch:** `feature/t7-numeric`, **stacked on `feature/t7-map-question` (MR !6)**. Every
 touch point below sits next to a `map_pin` branch, and "next to map_pin's" refers to the code on
 that branch. The MR targets `feature/t7-map-question` until !6 merges, then `main`.
@@ -77,7 +78,10 @@ added a branch, `numeric` needs one too. §4 lists them.
     0 could score. Error: `"numeric percent tolerance needs a non-zero answer; use absolute"`.
   - `config.unit`, if present, is a string of at most 20 characters.
 - "Finite number" means `int` or `float`, **not `bool`** (`isinstance(True, int)` is true in
-  Python), and not NaN or ±Infinity.
+  Python), and `math.isfinite(float(v))` succeeds. That excludes NaN and ±Infinity, and also
+  integers too large for a float (e.g. a crafted `10**400`), where `float(v)` raises
+  `OverflowError`. That exception is caught and means "not finite". Without this, arithmetic on
+  such a value would raise inside scoring (breaking N2's "never raises").
 - **Error messages**, checked in this order. `numeric.validate` returns the first that applies:
   1. `"numeric answer_data.answer must be a finite number"`
   2. `"numeric answer_data.toleranceMode must be 'absolute' or 'percent'"`
@@ -134,6 +138,15 @@ This is the same pattern as map_pin's point check, and it goes **right after it*
 
 - **Field.** A single text field with `inputmode="decimal"` (numeric keypad on phones), the unit
   as a suffix label, and a Submit button. Enter also submits.
+- **Sign and exponent buttons.** iOS's decimal keypad has only digits and `.`: no `-`, no `e`.
+  So two buttons sit beside the field, usable on every platform:
+  - **"±"** toggles a leading `-` on the current text (adds it if absent, removes it if present);
+  - **"×10ⁿ"** appends `e` if the text has no `e`/`E` yet (otherwise it does nothing). The player
+    then types the exponent digits; for a negative exponent they tap "±"…
+  - …but "±" only flips the *leading* sign. To keep this simple, a negative exponent is typed by
+    switching to the full keyboard (desktop, Android). On iOS negative exponents aren't
+    reachable, which is acceptable for classroom estimates (tiny quantities can use plain
+    decimals like `0.0004`).
 - **Accepted syntax** (after trimming):
   - the full regex is `^-?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`;
   - so: an optional leading `-`, digits with an optional `.` (`.5` is allowed), and an optional
@@ -142,24 +155,32 @@ This is the same pattern as map_pin's point check, and it goes **right after it*
     field: "Use digits and a dot, e.g. 0.62 or 6.02e23".
 - Parsed with `Number(...)`; the result must be finite. The payload sends the **number**.
 - Submit is disabled until the input parses. One submission per question, as for other types.
+- **No prompt on the phone.** Following the existing convention
+  (`player/src/pages/game/CLAUDE.md`), the prompt is shown only on the host's big screen; the
+  phone shows the input, the unit, the two buttons and Submit.
 
 **N6 — Displaying numbers.** One formatter, `formatNumber(n)`, in each frontend's `lib/numeric.ts`:
 
-- `|n| ≥ 1e6`, or `0 < |n| < 1e-3` → `n.toExponential(3)` (e.g. `6.022e+23`);
+- `|n| ≥ 1e6`, or `0 < |n| < 1e-3` → `n.toExponential(3)` with trailing zeros stripped from the
+  mantissa (`6.022e+23`, `1e-4` rather than `1.000e-4`);
 - otherwise → `String(Number(n.toPrecision(6)))` (e.g. `0.62`, `343`, `2.33333`).
 - The unit, when present, is appended with a space.
+- **Display only.** `formatNumber` is never used to fill an editable field (Step 7).
+- **Python mirror** for the HTML report: `numeric.format_number(n)` with the same two branches
+  (`f"{n:.3e}"` with the mantissa zeros stripped; else `str(float(f"{n:.6g}"))`, dropping a
+  trailing `.0`), and `numeric.with_unit(n, unit)`.
 
 **N7 — What each screen shows.**
 
 | Screen | Shows |
 |---|---|
-| Player question | Prompt, input with unit suffix, Submit |
+| Player question | Input with unit suffix, "±" and "×10ⁿ" buttons, Submit. No prompt (convention, N5) |
 | Host question | Type label "Numeric Estimate" and the hint "🔢 Type your estimate on your phone" (like map_pin's hint) |
 | Player results | "You: 0.58 · Answer: 0.62 · off by 0.04" and the points earned. "Spot on!" only when the client-computed verdict is full credit (see below); never "Correct!" for partial credit. COMPLETENESS: "Recorded" plus the answer |
 | Host results | The answer (large), the five-bar chart (N3), and "N of M within full credit" |
 | Player game over | Per-question card: your value, the answer, points |
 | Host game over | The answer and unit, plus the **same five-bar chart** at card size. The generic option/True-False distribution is not shown for numeric |
-| HTML report | Badge "Numeric", and a one-line summary **instead of** a bar chart (like map_pin): "Answer 0.62 · N guesses · M within full credit · median guess 0.58 · K under / J over" |
+| HTML report | Badge "Numeric", and a one-line summary **instead of** a bar chart (like map_pin): "Answer A · T guesses · F within full credit · median guess G · U under / O over", e.g. "Answer 0.62 · 24 guesses · 9 within full credit · median guess 0.58 · 11 under / 4 over". Numbers via `format_number`, the answer and median with the unit |
 
 Definitions for the numbers above:
 
@@ -171,8 +192,10 @@ Definitions for the numbers above:
     show the answer and points with no verdict and no "off by".
 - **"N of M within full credit"**: N = the `full` bucket count; M = the sum of all five buckets
   (= players who answered). Shown in both grading modes.
-- **"K under / J over"**: K = `zero_low` + `partial_low`, J = `partial_high` + `zero_high`.
-  Full-credit answers count in neither.
+- **Report letters:** T = valid stored guesses; F = guesses whose `_extract_answer_key` bucket
+  is `"full"` (not `is_correct`, which is always true under COMPLETENESS); U = `zero_low` +
+  `partial_low`; O = `partial_high` + `zero_high`. Full-credit answers count in neither U nor O.
+  The host screen's "N of M" uses the same F and T.
 - **"Median guess"**: the median of valid stored values (the lower middle value when the count is
   even, as map_pin's report does). Omitted when there are 0 guesses.
 - **"off by"**: `formatNumber(|value − answer|)` plus the unit. In percent mode, followed by the
@@ -195,7 +218,9 @@ both need it.
 - **Defaults** for a new numeric question (stats-tuned): absolute, full `0.05`, zero `0.15`,
   answer empty, unit empty.
 - **Parsing.** All four numeric fields are text inputs parsed with `parseNumber` (N5), so `e`
-  notation works in the editor too. The admin app gets its own `lib/numeric.ts` for this.
+  notation works in the editor too. The admin app gets its own `lib/numeric.ts` with
+  `parseNumber`, `formatNumber` and `withUnit`, the same as the host copy (the preview line
+  needs formatting: 343 × 5% is `17.150000000000002`, shown as `17.15`).
 - **Client checks** mirror N1. The server's 422 is still the real check, and admin's `toError`
   shows it.
 - **Preview line** under the fields:
@@ -239,6 +264,7 @@ Same style as `services/map_pin.py`. Functions:
   effective ones; the frontends apply the mode for display.
 - `validate(config, answer_data) -> str | None`: returns the first N1 error message (in N1's
   order), or `None`.
+- `format_number(n) -> str` and `with_unit(n, unit) -> str`: the N6 Python mirror.
 - `EPS_SCALE = 1e-9`, used as `eps = EPS_SCALE × max(1, |answer|)` in both `score_numeric` and
   `bucket`.
 
@@ -320,11 +346,14 @@ In each `QuestionEditorPage.tsx`, following the map_pin branches:
 
 - the `QuestionType` union;
 - `FormState` fields (`numAnswer`, `numMode`, `numFull`, `numZero`, `numUnit`) with N8 defaults;
-- `questionToForm` and `formToPayload` (`numeric` → `config: {unit?}`, `answer_data` per §2);
+- `questionToForm` and `formToPayload` (`numeric` → `config: {unit?}`, `answer_data` per §2).
+  `questionToForm` fills the numeric text fields with `String(n)`, which round-trips exactly
+  (`0.123456789`, `6.02214076e+23`); **not** `formatNumber`, which would silently round on
+  re-save;
 - the `points_value` condition (numeric uses the form's points field, like map_pin);
 - the type `<option>` "Numeric Estimate (type a number)";
 - the form section;
-- the list preview: "≈ 0.62 (±0.05 / ±0.15)";
+- the list preview: absolute "≈ 0.62 (±0.05 / ±0.15)"; percent "≈ 343 m/s (±5% / ±20%)";
 - the type label map.
 
 ### Step 8 — Simulator (`scripts/simulate_players.py`)
@@ -344,7 +373,9 @@ Update the CLAUDE.md files of every directory touched:
 - `backend/app/schemas` (shapes and payload `value`);
 - `backend/app/websocket`;
 - `frontend/{player,host}/src/{lib,types,pages/game}`;
-- the admin and host `pages` editor notes.
+- the admin and host `pages` editor notes. (If `frontend/host/src/pages/CLAUDE.md` is still the
+  pre-T4 version on this branch, i.e. it says there is no game editor, take !8's version when
+  rebasing rather than editing it here.)
 
 ### Files touched
 
@@ -357,7 +388,7 @@ Update the CLAUDE.md files of every directory touched:
 | `backend/app/websocket/gateway.py` | reveal, payload check |
 | `frontend/player/src/types/game.ts`, `lib/numeric.ts` (**new**), `pages/game/{Question,Results,GameOver}Page.tsx` | N5–N7 |
 | `frontend/host/src/types/game.ts`, `lib/numeric.ts` (**new**), `components/NumericBuckets.tsx` (**new**), `pages/game/{Question,Results,GameOver}Page.tsx`, `pages/manage/QuestionEditorPage.tsx` | N3, N7, N8 |
-| `frontend/admin/src/lib/numeric.ts` (**new**, `parseNumber` only), `pages/QuestionEditorPage.tsx` | N8 |
+| `frontend/admin/src/lib/numeric.ts` (**new**: `parseNumber`, `formatNumber`, `withUnit`), `pages/QuestionEditorPage.tsx` | N8 |
 | `scripts/simulate_players.py` | Step 8 |
 | `tests/unit/test_numeric.py`, `tests/integration/test_numeric.py` | **new** (§5) |
 | CLAUDE.md files listed in Step 9 | context sync |
@@ -379,7 +410,10 @@ For `calculate_score` and `numeric.bucket`:
    answer (−40, 10%) uses `|answer|`.
 3. The bucket sign: below the answer → `_low`, above → `_high`.
 4. COMPLETENESS → full for any valid value.
-5. Invalid values (`None`, `"0.6"`, `True`, NaN, Infinity) → 0, no exception.
+5. Invalid values (`None`, `"0.6"`, `True`, NaN, Infinity, `10**400`) → 0, no exception; the
+   same values make `is_finite_number` false.
+8. `format_number`: `0.1 + 0.2` → `"0.3"`; `6.02214076e23` → `"6.022e+23"`; `0.0001` → `"1e-04"`
+   or the documented mantissa-stripped form; `343.0` → `"343"`.
 6. Rounding to 2 decimals.
 7. `numeric.validate`: each N1 rule produces its exact N1 message; when two rules fail, the
    earlier one's message wins; a valid absolute and a valid percent question → `None`.
@@ -421,6 +455,8 @@ Follow `test_map_pin.py`'s structure.
    browser.
 3. Check:
    - the numeric keypad appears;
+   - **on an iPhone (or Safari's iOS simulator):** a negative value can be entered with "±",
+     and `6.02e23` with "×10ⁿ";
    - `6.02e23` is accepted and `1,5` is rejected;
    - the phone result line;
    - the big-screen chart;
@@ -438,6 +474,10 @@ Follow `test_map_pin.py`'s structure.
   uses only the prompt, so the only shared files are the editors. Coordinate if both are open at
   once.
 - **The editors drift.** The admin and host editor copies must both get N8 (T4 design D6).
+- **Edited tolerances re-bucket old sessions.** Summaries and the report recompute buckets from
+  the question's *current* `answer_data`, so editing tolerances after a session (allowed when no
+  game is live) makes that session's chart disagree with its stored points. This is the existing
+  "exports read the current questions" limit (T4 host design D5); stored points never change.
 - **Reload loses "your answer"** on the player results screen. That's existing behavior for all
   types (`player/src/pages/game/CLAUDE.md`).
 
@@ -459,3 +499,22 @@ were checked against the code before acting on them.
 | G | The player's `question_results` has no `isCorrect` | The verdict is computed client-side from the reveal with N2's rule; omitted after a reload (N7, `isFullCredit`) |
 | H | Numbers undefined: M, under/over, COMPLETENESS charting, "off by" in percent mode, editor preview, empty chart | Defined in N7, N3 and N8 |
 | I | Simulator accuracy source, editor field parsing | `p.accuracy` named; editors use `parseNumber`; admin gets `lib/numeric.ts` (Steps 7–8) |
+
+### Round 2
+
+A second fresh Claude Code session, given the round-1 revision. Claims about the code were
+verified (the phone never shows the prompt; `10**400` raises `OverflowError` in float arithmetic
+and in `math.isfinite`).
+
+| ID | Finding | Resolution |
+|---|---|---|
+| R1 | iOS decimal keypad has no `-` or `e`: negative correlations and `6.02e23` can't be typed | "±" and "×10ⁿ" buttons beside the field (N5); iOS manual check added. Negative exponents need the full keyboard (accepted limit) |
+| R2 | Report number formatting unspecified in Python | `numeric.format_number` / `with_unit` mirror N6 (N6, Step 1) |
+| R3 | Report letters swapped vs host; "within full credit" source unstated | Report line uses T/F/G/U/O; F = bucket `"full"`, not `is_correct` (N7) |
+| R4 | Editor re-save could round stored numbers | `questionToForm` uses `String(n)`; `formatNumber` is display only (Step 7, N6) |
+| R5 | Admin preview needs formatting, but admin lib was "parseNumber only" | Admin `lib/numeric.ts` gets the formatter too (N8, files table) |
+| R6 | Huge JSON integers pass the "finite" check and then raise | Finite = `math.isfinite(float(v))` succeeds; overflow means not finite; unit test adds `10**400` (N1) |
+| R7 | Spec showed the prompt on the phone, against convention | No prompt on the phone (N5, N7) |
+| R8 | Percent-mode list preview missing | Added (Step 7) |
+| R9 | Edited tolerances re-bucket old sessions | Known limit (§6) |
+| R10 | `1.000e-4` trailing zeros | Mantissa zeros stripped (N6) |
