@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from ..services import map_pin, numeric
+from ..services import image_refs, map_pin, numeric
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +217,11 @@ class QuestionCreate(BaseModel):
             error = numeric.validate(self.config, self.answer_data)
             if error:
                 raise ValueError(error)
+        # Image references: shape only here; ownership needs the DB and is
+        # checked in question_service (docs/design-t8-images.md).
+        error = image_refs.shape_error(self.type, self.config)
+        if error:
+            raise ValueError(error)
         return self
 
 
@@ -352,3 +357,23 @@ class AdminSessionItem(BaseModel):
     created_at: datetime
     completed_at: datetime | None
     player_count: int
+
+
+# ---------------------------------------------------------------------------
+# Images (T8)
+# ---------------------------------------------------------------------------
+
+
+class ImageResponse(BaseModel):
+    """One game image, without its bytes (docs/design-t8-images.md Step 3)."""
+
+    id: str
+    game_id: int
+    filename: str
+    mime: str
+    width: int
+    height: int
+    size_bytes: int
+    sha256: str
+    updated_at: datetime | None
+    used_by: list[int]
