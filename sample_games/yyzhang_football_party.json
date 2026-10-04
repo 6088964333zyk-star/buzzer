@@ -89,6 +89,24 @@
       "points_value": 1.0
     },
     {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is Barcelona's Camp Nou stadium?",
+      "config": { "aspectRatio": 2 },
+      "answer_data": { "target": { "x": 0.5059, "y": 0.2701 }, "fullRadius": 0.015, "zeroRadius": 0.1 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is the Maracanã, host of the 1950 and 2014 World Cup finals?",
+      "config": { "aspectRatio": 2 },
+      "answer_data": { "target": { "x": 0.3799, "y": 0.6273 }, "fullRadius": 0.02, "zeroRadius": 0.15 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
       "type": "multiple_choice",
       "grading_type": "COMPLETENESS",
       "prompt": "Which league would you most like to watch this weekend?",
@@ -122,6 +140,15 @@
       "config": { "options": ["Watching full matches on TV or streaming", "Highlights on social media", "Going to games in person", "Playing video games like EA FC", "I don't — I'm here for the snacks"] },
       "answer_data": {},
       "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Take a guess and pin it: where will the 2026 World Cup final be played? Every pin scores!",
+      "config": { "aspectRatio": 2 },
+      "answer_data": { "target": { "x": 0.2942, "y": 0.2733 }, "fullRadius": 0.03, "zeroRadius": 0.2 },
+      "time_limit_seconds": 30,
       "points_value": 1.0
     }
   ]
