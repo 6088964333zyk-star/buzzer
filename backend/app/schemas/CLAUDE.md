@@ -31,6 +31,9 @@ file format and the API share one validator.
   `services/question_service.update`, which merges the update onto the stored question and
   re-runs `QuestionCreate` (422 on failure). New question types (T7) only need validation in
   `QuestionCreate.validate_structure`.
+- `map_pin` (T7): `config.aspectRatio` > 0 is required; `answer_data` needs `target {x, y}` in
+  [0, 1] and `0 ≤ fullRadius < zeroRadius ≤ 1` for **both** grading types. Player payload
+  `{point: {x, y}}`. See `services/map_pin.py` and `docs/design-t7-map-question.md`.
 - The allowed question types are a regex **duplicated** in `QuestionCreate.type` and
   `QuestionUpdate.type`. Adding a type means editing both, plus the validator.
 - Key naming is inconsistent by type and must be matched exactly: multiple_choice /
@@ -43,5 +46,6 @@ file format and the API share one validator.
   comment in `game.py`. Never return `QuestionResponse` to players; it contains answers.
 - The answer payload players send is not defined here either; it's implicit in
   `game_service.calculate_score`: `selectedIndex` (multiple_choice), `selectedValue`
-  (true_false), `text` (fill_in_the_blank), `selectedIndices` (multi_select).
+  (true_false), `text` (fill_in_the_blank), `selectedIndices` (multi_select), `point`
+  (map_pin).
 - `UserUpdate.role` only allows `USER`/`ADMIN`; `GUEST` is created by the guest-join flow only.

@@ -45,6 +45,8 @@ call the REST API for setup and use Socket.IO for play.
   `/api/host` route.
 - **Games belong to a course (T4).** A course-owned game runs and is managed only within its
   course; legacy course-less games are admin-only. `docs/design-t4-host.md` has the rules.
+- **Question types:** the four originals plus `map_pin` (T7, Canvas map tap; design in
+  `docs/design-t7-map-question.md`, helpers in `services/map_pin.py`).
 - **Adding a question type (T7) touches many places**, because per-type answer logic is
   copied rather than shared — and the copies have drifted (the HTML report already can't
   render multi_select): the type regex twice and the validator in `schemas/admin.py`;

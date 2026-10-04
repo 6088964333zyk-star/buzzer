@@ -53,8 +53,8 @@ Socket.IO rooms: `{code}` (everyone), `{code}:host` (host-only events), `user:{i
   `gradingType`, and `editDistance` for fill-in-the-blank. Never put answer information in
   `config` — for T7/T8 types (e.g. a canvas target region), the answer key belongs in
   `answer_data`.
-- **Per-type answer validation lives here too:** `submit_answer` structurally checks only
-  `multi_select` (`selectedIndices`). A new question type needs its own payload check here,
+- **Per-type answer validation lives here too:** `submit_answer` structurally checks
+  `multi_select` (`selectedIndices`) and `map_pin` (`point`, via `map_pin.is_unit_point`). A new question type needs its own payload check here,
   in addition to scoring in `game_service.calculate_score` and the reveal in `_answer_reveal`
   — which is copied in `services/report_service.py` and `game_service`, and the copies have
   already drifted (see `services/CLAUDE.md` for the full list).

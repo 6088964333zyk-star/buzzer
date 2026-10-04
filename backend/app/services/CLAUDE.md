@@ -29,6 +29,11 @@ exports/reports. Routers stay thin and call into here.
   *not* the phase), `…:answered:{qid}`, `…:dist:{qid}` (answer distribution);
   `delete_room_state` cleanup. `restore_from_mysql` exists but is **dead code**: nothing
   calls it, and it only returns a dict without writing to Redis.
+- `map_pin.py` — helpers for the `map_pin` type (T7): `is_unit_point` (the one point
+  check used by the schema, gateway and scoring; rejects bools/NaN/out of range),
+  `score_map_pin` (linear falloff between `fullRadius` and `zeroRadius`, distance in
+  map-width units with y divided by `aspectRatio`, 2-decimal rounding), `map_pin_cell`
+  (`"cx:cy"` distribution key on a 200×100 grid) and `reveal`.
 - `question_service.py` — question create/update/delete/reorder shared by `routers/admin.py`
   and `routers/host.py`. Update merges onto the stored row and re-validates with
   `QuestionCreate` (422). Deleting, or changing the `type` of, an answered question → 409.
@@ -60,7 +65,9 @@ game lifecycle through `game_service` and `state_service`.
   summary functions (`get_player_question_summary`, `get_host_question_summary`);
   `websocket/gateway.py` `_answer_reveal` and the `submit_answer` payload check; and in
   `report_service.py` its own `_answer_reveal`, `_extract_answer_key` and type badge. The
-  report copies already lack a multi_select branch.
+  report copies already lack a multi_select branch. `map_pin` (T7) is wired into all of
+  them; its reveal always includes the target, so its branch runs **before** the
+  COMPLETENESS early return in each `_answer_reveal` and summary.
 - `calculate_score` assumes a well-formed payload: a non-integer `selectedIndex` or a
   non-string `text` raises, and the gateway doesn't catch it — the player gets no reply.
 - **Roster upload is a full replace (kept deliberately in T4).** Any active netid missing from
