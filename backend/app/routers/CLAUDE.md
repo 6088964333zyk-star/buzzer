@@ -46,17 +46,16 @@ automatically when the request finishes and rolls back on error, so most handler
   every `host.py` route, `create_room` and the CSV export; `my-courses`/`my-games` filter by
   the same HOST rows, and `authorise_player` lets a course HOST join as a player. New host
   routes must call a helper rather than re-implementing the query.
-- **Host `merge-guest` is too broad:** it moves *all* of the guest's scores from every session
-  and deletes the guest, without checking the guest played in this session — so the host of
-  any session can merge/delete any guest. The admin version differs too: it promotes the guest
-  when the netid has no account instead of returning 404.
+- **Host `merge-guest` is scoped to its session:** the guest must have played in that session
+  (404) and nowhere else (409), the target must be on the session course's active roster or
+  have a grant for it (403, ADMIN exempt), and a target who also played the session is refused
+  (409, `SessionScore` has no unique key). The admin version is still unrestricted and
+  promotes the guest when the netid has no account instead of returning 404.
 - **`oauth2-callback` trusts the `X-Auth-Request-User` header with no other check.** It is
   only safe behind the OAuth proxy; anywhere the backend is reachable directly (e.g.
   `localhost:8000`), a forged header logs in as any netid.
 - **`/api/health` counts are wrong:** it reads `room:{code}:players`, but the real key is
   `session:{id}:players`, so players are always 0; the room count includes COMPLETED rooms.
-- `merge-guest` (host version) also takes an untyped `body: dict` and reports missing fields
-  as 409 Conflict rather than 422.
 - **Prompts are sanitized with `bleach`** on create, update and import, allowing only
   `b`/`i`/`br`/`u` — an `<img>` in a prompt is silently stripped (relevant to T8). `config`
   is not sanitized. The existing file-upload pattern to copy is `upload_roster`

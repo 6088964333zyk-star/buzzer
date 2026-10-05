@@ -20,6 +20,7 @@ from ..redis_client import get_redis
 from ..schemas.game import (
     ActiveSessionItem,
     MyCourseItem,
+    HostMergeGuest,
     MyGameItem,
     RoomCreateRequest,
     RoomCreateResponse,
@@ -274,11 +275,20 @@ async def list_session_guests(
 @router.post("/sessions/{session_id}/merge-guest", status_code=204)
 async def merge_guest_for_session(
     session_id: str,
-    body: dict,
+    body: HostMergeGuest,
     user: Annotated[User, Depends(require_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
-    """Host-initiated guest merge. Delegates to the same logic as the admin endpoint."""
+    """Host-initiated guest merge, scoped to this session.
+
+    The guest must have played in this session and nowhere else, and (unless
+    the caller is ADMIN) the target account must belong to the session's
+    course: an active roster entry for its netid, or a course access grant.
+    Before this check any session host could merge, and delete, any guest in
+    the system into any account.
+    """
+    from ..common.exceptions import ConflictError, ForbiddenError
+    from ..models.course import CourseRoster
     from ..models.session import SessionScore
     from ..models.user import User as UserModel
 
@@ -286,39 +296,71 @@ async def merge_guest_for_session(
     if not session:
         raise NotFoundError(f"Session {session_id} not found")
     if user.role != "ADMIN" and session.host_user_id != user.id:
-        from ..common.exceptions import ForbiddenError
-
         raise ForbiddenError("Only the session host can merge guest players")
 
-    guest_user_id: str = body.get("guest_user_id", "")
-    target_netid: str = body.get("target_netid", "")
-
-    if not guest_user_id or not target_netid:
-        from ..common.exceptions import ConflictError
-
-        raise ConflictError("guest_user_id and target_netid are required")
-
-    guest = await db.get(UserModel, guest_user_id)
+    guest = await db.get(UserModel, body.guest_user_id)
     if not guest or guest.role != "GUEST":
-        raise NotFoundError(f"Guest user {guest_user_id} not found")
+        raise NotFoundError(f"Guest user {body.guest_user_id} not found")
 
-    real_result = await db.execute(
-        select(UserModel).where(UserModel.netid == target_netid.lower())
+    scores = (
+        (await db.execute(select(SessionScore).where(SessionScore.user_id == guest.id)))
+        .scalars()
+        .all()
     )
-    real_user = real_result.scalar_one_or_none()
+    if not any(s.session_id == session_id for s in scores):
+        raise NotFoundError(f"Guest {guest.id} did not play in this session")
+    if any(s.session_id != session_id for s in scores):
+        raise ConflictError(
+            "This guest also has scores in other sessions; ask an admin"
+        )
+
+    netid = body.target_netid.strip().lower()
+    real_user = (
+        await db.execute(select(UserModel).where(UserModel.netid == netid))
+    ).scalar_one_or_none()
     if not real_user:
-        raise NotFoundError(f"No user with netid '{target_netid}' found")
+        raise NotFoundError(f"No user with netid '{netid}' found")
 
-    scores_result = await db.execute(
-        select(SessionScore).where(SessionScore.user_id == guest_user_id)
-    )
-    for score in scores_result.scalars().all():
+    if user.role != "ADMIN":
+        on_roster = (
+            await db.execute(
+                select(CourseRoster.id).where(
+                    CourseRoster.course_id == session.course_id,
+                    CourseRoster.netid == netid,
+                    CourseRoster.is_active == True,  # noqa: E712
+                )
+            )
+        ).first()
+        has_access = (
+            await db.execute(
+                select(UserCourseAccess.user_id).where(
+                    UserCourseAccess.course_id == session.course_id,
+                    UserCourseAccess.user_id == real_user.id,
+                )
+            )
+        ).first()
+        if not on_roster and not has_access:
+            raise ForbiddenError(f"'{netid}' is not in this session's course")
+
+    # SessionScore has no unique key, so merging into someone who also played
+    # this session would silently count their answers twice.
+    already_played = (
+        await db.execute(
+            select(SessionScore.id).where(
+                SessionScore.session_id == session_id,
+                SessionScore.user_id == real_user.id,
+            )
+        )
+    ).first()
+    if already_played:
+        raise ConflictError(f"'{netid}' already has scores in this session")
+
+    for score in scores:
         score.user_id = real_user.id
-
     await db.delete(guest)
     logger.info(
         "guest_merged_by_host",
-        guest_id=guest_user_id,
+        guest_id=guest.id,
         real_user_id=real_user.id,
         session_id=session_id,
     )
