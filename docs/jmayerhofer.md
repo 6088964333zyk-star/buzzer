@@ -87,6 +87,21 @@ conversation.
 **Next time:** the docs got long. For a smaller feature I'd run one Goldfish round, not two, and
 ask for a shorter spec.
 
+**T9 screenshots.** The before/after evidence is in [`docs/ui/`](ui/README.md). The same
+Playwright tour plays a real three-question game and captures all 31 screens in each folder:
+- [`before/`](ui/before/): the starter's single hardcoded dark palette;
+- [`after-light/`](ui/after-light/) and [`after-dark/`](ui/after-dark/): the two new themes;
+- [`contrast.md`](ui/contrast.md): 39 token pairs, all passing WCAG 2.1 AA in both themes.
+
+| Screen | Before | Light | Dark |
+|---|---|---|---|
+| Player question (numeric) | [png](ui/before/player-question-numeric.png) | [png](ui/after-light/player-question-numeric.png) | [png](ui/after-dark/player-question-numeric.png) |
+| Host question | [png](ui/before/host-question-mc.png) | [png](ui/after-light/host-question-mc.png) | [png](ui/after-dark/host-question-mc.png) |
+| Host results (numeric) | [png](ui/before/host-results-numeric.png) | [png](ui/after-light/host-results-numeric.png) | [png](ui/after-dark/host-results-numeric.png) |
+| Admin question editor | [png](ui/before/admin-question-editor.png) | [png](ui/after-light/admin-question-editor.png) | [png](ui/after-dark/admin-question-editor.png) |
+
+The [README](ui/README.md) shows nine key screens side by side.
+
 ## 3. AI Tools Used
 
 Only **Claude Code**, with the repo's skills. Logs are in `ai_log/`:
@@ -120,7 +135,7 @@ instead:
 - running the app and playing the games;
 - the test suites and CI;
 - the Goldfish and mean-review passes;
-- the screenshot tours.
+- the screenshot tours ([`docs/ui/`](ui/README.md)).
 
 I can explain the design decisions and the data flow. For line-level details I'd be re-reading
 the code with everyone else at the TA review. I trusted the agent's status reports most, and
