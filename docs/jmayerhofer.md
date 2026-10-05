@@ -11,11 +11,6 @@ Team: Jack Mayerhofer (jmayerhofer) and Bill Zhang (yyzhang).
 
 **What Bill owned:** the backend context docs, the host half of T4, `map_pin` and T8.
 
-<!--
-DRAFTING NOTE (delete before merging): Claude drafted the factual parts from the repo, design
-docs and ai_log. The ✍️ blocks are mine to write in my own words.
--->
-
 ## 1. Repository and Codebase Organization
 
 - **`backend/app/`** is FastAPI plus Socket.IO:
@@ -52,8 +47,16 @@ docs and ai_log. The ✍️ blocks are mine to write in my own words.
 the leaf directories. Bill's review caught three errors, fixed in `dca9617`. I updated the files
 again with T4, T7 and T9.
 
-> ✍️ **Jack:** One or two things writing these taught you (e.g. the apps share nothing;
-> `new_question` must never carry the answer).
+**What writing them taught me:**
+- **The three apps share no code.** Every shared component is really three copies, so any fix
+  happens three times. That's why the T9 design puts its shared theme files under a check that
+  the copies are identical.
+- **`new_question` sends `config` to every phone.** Anything in `config` is visible to players.
+  I knew this before designing numeric, so the answer and tolerances went in `answer_data`
+  from the start instead of being found in review.
+
+The docs also paid off later: each new session started by reading them instead of re-reading
+the code, and the design docs cite them directly.
 
 ## 2. Design Process (Elephant/Goldfish)
 
@@ -72,8 +75,17 @@ For each feature I used the same steps:
 
 My takeaway: a Goldfish review is a list of claims to verify, not changes to accept blindly.
 
-> ✍️ **Jack:** Did the process change how you implemented? Would you have caught these without
-> it? What would you skip next time?
+**Did it change how I implemented?** Yes. Implementation became "do Step N of the doc", one
+commit per step, so I could check progress against the plan instead of against my memory of a
+conversation. When the plan was wrong, the doc was fixed first: the T9 tsconfig fix and the CI
+job are recorded there before the code that depends on them.
+
+I don't think I would have caught the stacked-branch problem, the iOS keypad or the contrast
+failures without a reader who had no context. All three looked fine from inside the
+conversation.
+
+**Next time:** the docs got long. For a smaller feature I'd run one Goldfish round, not two, and
+ask for a shorter spec.
 
 ## 3. AI Tools Used
 
@@ -103,8 +115,25 @@ the code and prose. I checked it by running the app, reading the docs and checki
 - **A silent failure:** a macOS `sed` command that did nothing and gave no error.
 - **Verbose docs** that took real time to review.
 
-> ✍️ **Jack:** Your honest take: what you trusted without checking, and what you'd do
-> differently.
+**Honest assessment:** I didn't read every line of the generated code. I checked behavior
+instead:
+- running the app and playing the games;
+- the test suites and CI;
+- the Goldfish and mean-review passes;
+- the screenshot tours.
+
+I can explain the design decisions and the data flow. For line-level details I'd be re-reading
+the code with everyone else at the TA review. I trusted the agent's status reports most, and
+those were exactly where it was wrong twice in one session.
+
+**What I'd do differently:**
+- check GitLab and CI myself before acting on a summary;
+- read the diffs of the riskiest changes (scoring, access checks) line by line;
+- ask for shorter docs.
+
+**Disclosure:** this document was drafted by Claude Code from my repository, design docs and
+`ai_log/`, including these reflection sections (session `30a99440`). I asked for that, then
+reviewed and kept it.
 
 ## 4. Best Practices Learned
 
@@ -118,4 +147,9 @@ the code and prose. I checked it by running the app, reading the docs and checki
 - **Using AI well:** give it context, make it write the plan first, test the plan on a fresh
   reader, and verify its claims.
 
-> ✍️ **Jack:** Keep the one or two that actually changed how you work, and say why.
+**The two that changed how I work:**
+- **Verify before trusting.** Both the Goldfish's wrong "must-fix" and the agent's wrong ruff
+  and MR reports looked authoritative. Checking against the code and the real system (CI,
+  GitLab) took a minute each time and changed the outcome.
+- **Turn conventions into checks.** A rule that fails a command (the T9 token check, pinned CI)
+  holds up across a team and across AI sessions. A rule written in a doc doesn't.
