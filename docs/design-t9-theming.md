@@ -2,9 +2,11 @@
 
 **Owner:** Jack Mayerhofer (jmayerhofer). T8 (images) is Bill Zhang's and is in progress at the
 same time. See §6, Coordination.
-**Status:** Draft, pre-Goldfish.
+**Status:** Revised after Goldfish round 1 (2026-10-04, fresh subagent). The pre-Goldfish draft
+is commit `e30d3d9`. See *§7 Goldfish revision log*.
 **Branch:** `feature/t9-theming`, cut from `main` at `a739236` (T4, T7 map_pin and T7 numeric
-all merged).
+all merged). **Merge `main` into it after T8 (!11) merges and before Step 3**, so the sweep
+covers T8's image UI too (§6).
 **Evidence already captured:** 31 "before" screenshots in `docs/ui/before/` (commit `b3532b6`).
 They were taken by a Playwright tour of the running stack before any T9 change (§4 Step 8).
 **Process:** Written after the T3 context docs and committed before any implementation code.
@@ -32,8 +34,8 @@ management.
 
 - **Tailwind setup.** All three `tailwind.config.ts` files only set a font. Each `index.css`
   hardcodes `body { background: #0f172a; color: #f8fafc }`.
-- **Hardcoded color utilities.** About **820** uses in about **47 files**: host 276, player 177,
-  admin 370.
+- **Hardcoded color utilities.** About **820–910** uses in about **50 files** (depending on the
+  regex; one measurement gave host 276, player 177, admin 370). T8 (!11) adds about 60 more.
   - 46 distinct shades in total. The slate greys dominate (~640 uses), then indigo (accent),
     red / green / amber (status), and the player's answer-button palette.
   - Most frequent: `slate-400` 197, `slate-500` 104, `slate-100` 96, `slate-700` 60,
@@ -42,7 +44,15 @@ management.
 - **Colors outside Tailwind.** The three `components/MapCanvas.tsx` copies paint with hex and
   `rgba()` strings in canvas code (`#cfe3f2` water, `rgba(250,204,21,0.15)` zero-credit ring,
   `rgba(34,197,94,0.3)` full-credit ring, `rgba(99,102,241,0.75)` guess dots, `#16a34a` target
-  pin, `#fff` pin outline). The host lobby's `QRCodeSVG` uses its default black-on-white.
+  pin, `#dc2626` the player's own pin, `#fff` pin outline).
+- **Two QR codes** in the host app, both `QRCodeSVG` on a `bg-white` card: the lobby's big one
+  (`pages/game/LobbyPage.tsx`), and a persistent bottom-right join panel on every game screen
+  (`pages/game/GameLayout.tsx`, with a `text-[10px]` "Room Code" caption).
+- **Fixed overlays already exist.** The player `GameLayout` has a `fixed top-0 inset-x-0 z-50`
+  reconnect banner (`bg-yellow-600/90 text-yellow-100`).
+- **A stale build artifact.** `tsc -b` emits a gitignored `tailwind.config.js` next to each
+  `tailwind.config.ts`, and Tailwind 3.4 resolves `.js` before `.ts`. `npm run build`
+  regenerates it, but `npm run dev` after editing the `.ts` would use the **old** config.
 - **Contrast failures today** (WCAG ratio; 4.5 is required):
   - `slate-500` text on the `slate-900` page: **3.75** (104 uses).
   - Player answer buttons with white text: yellow-500 **1.92**, orange-500 **2.80**,
@@ -84,19 +94,19 @@ modifiers work (`bg-surface/60`). Names describe roles, not colors.
 |---|---|---|---|
 | `bg` | page background | slate-900 `15 23 42` | slate-50 `248 250 252` |
 | `surface` | cards, panels, sidebar | slate-800 `30 41 59` | white `255 255 255` |
-| `surface-raised` | inputs, selected rows, secondary buttons | slate-700 `51 65 85` | slate-100 `241 245 249` |
+| `surface-raised` | inputs, selected rows, secondary buttons | `41 53 72` (between slate-800 and -700) | slate-100 `241 245 249` |
 | `surface-hover` | hover on surfaces | slate-600 `71 85 105` | slate-200 `226 232 240` |
 | `border` | default borders, dividers | slate-700 `51 65 85` | slate-200 `226 232 240` |
-| `border-strong` | input borders, emphasized dividers | slate-600 `71 85 105` | slate-300 `203 213 225` |
+| `border-strong` | input/select borders (must reach 3:1, WCAG 1.4.11) | slate-500 `100 116 139` | `120 134 156` (between slate-400 and -500) |
 | `fg` | primary text | slate-100 `241 245 249` | slate-900 `15 23 42` |
 | `fg-muted` | secondary text | slate-300 `203 213 225` | slate-600 `71 85 105` |
 | `fg-subtle` | hints, captions, placeholders | slate-400 `148 163 184` | `85 98 120` (between slate-500 and -600) |
 | `accent` | primary buttons, active nav | indigo-600 `79 70 229` | indigo-600 `79 70 229` |
-| `accent-hover` | hover on accent | indigo-500 `99 102 241` | indigo-700 `67 56 202` |
+| `accent-hover` | hover on accent (darker in both themes) | indigo-700 `67 56 202` | indigo-700 `67 56 202` |
 | `on-accent` | text/icons on accent | white | white |
 | `accent-fg` | accent-colored text and links | indigo-300 `165 180 252` | indigo-700 `67 56 202` |
-| `success` | success fills (bars, badges) | green-600 `22 163 74` | green-600 `22 163 74` |
-| `success-fg` | success text ("Spot on!", ✓) | green-400 `74 222 128` | green-700 `21 128 61` |
+| `success` | success fills (bars, badges, buttons) | green-700 `21 128 61` | green-700 `21 128 61` |
+| `success-fg` | success text ("Spot on!", ✓) | green-400 `74 222 128` | green-800 `22 101 52` |
 | `danger` | destructive buttons, error fills | red-600 `220 38 38` | red-600 `220 38 38` |
 | `danger-fg` | error text, ✗ | red-400 `248 113 113` | red-700 `185 28 28` |
 | `warning` | warning fills | amber-500 `245 158 11` | amber-500 `245 158 11` |
@@ -109,11 +119,17 @@ modifiers work (`bg-surface/60`). Names describe roles, not colors.
 | `map-water` | MapCanvas background | `30 58 82` | `207 227 242` (today's `#cfe3f2`) |
 | `qr-bg`, `qr-fg` | QR code card | white / black | white / black |
 
-- The **dark** column keeps today's look, except that `fg-subtle` moves from slate-500 to
-  slate-400. That's the contrast fix: slate-500 on slate-900 is 3.75.
-- The **light `fg-subtle`** is a custom grey, because slate-500 on slate-100 is only 4.34.
-- **Every value is final only once `check_contrast.mjs` passes** (T6). If a value fails during
-  implementation, adjust it and record the change in §7.
+- **The dark column keeps today's look.** Three deliberate changes, all contrast fixes:
+  - today's slate-500 text becomes slate-400 (`fg-subtle`), because slate-500 on slate-900 is
+    3.75;
+  - `surface-raised` is a touch darker than slate-700, so slate-400 text on inputs passes
+    (4.83; on slate-700 it's 4.04);
+  - status fills and accent hover move to the 700 shades, because white on green-600 is 3.30
+    and on indigo-500 is 4.47.
+- **Light `fg-subtle` and `border-strong` are custom greys:** slate-500 text on slate-100 is
+  only 4.34, and slate-300 borders on white are 1.48.
+- **These values were computed against every T6 pair** (the round-1 Goldfish caught that the
+  draft's didn't pass). `check_contrast.mjs` still decides; any later change is recorded in §7.
 - **Alpha uses** (today `bg-red-900/40`, `bg-green-900/30`, `bg-amber-500/10`) become a token
   with an opacity modifier, e.g. `bg-danger/15`, `bg-success/15`, `bg-warning/10`. There are no
   separate tint tokens.
@@ -129,6 +145,19 @@ The token object is identical in the three configs. A leftover raw class such as
 then **generates no CSS at all**, so a miss in the sweep shows up as obviously unstyled rather
 than silently staying dark. `white` and `black` are deliberately not provided: use `on-accent`,
 `qr-bg` and so on.
+
+- **Default border color.** Tailwind 3.4's `borderColor.DEFAULT` is
+  `theme('colors.gray.200', 'currentColor')`. With `gray` gone, every bare `border` / `divide-y`
+  would take the *text* color. So the config also sets
+  `borderColor: ({ theme }) => ({ ...theme('colors'), DEFAULT: 'rgb(var(--border) / <alpha-value>)' })`,
+  and the same for `divideColor`.
+- **The token object lives in `tailwind.tokens.ts`** next to each config, byte-identical in the
+  three apps and included in the T8 `cmp` check. Each config imports it.
+- **No stale config.** Each app's `tsconfig.node.json` gets `"noEmit": true` (and loses
+  `composite`/emit settings if `tsc -b` requires them; otherwise the build script's `tsc -b`
+  becomes `tsc -p tsconfig.app.json --noEmit` or the equivalent), and the stale
+  `tailwind.config.js`/`.d.ts` files are deleted. Verify after the change: editing the `.ts`
+  changes what `npm run dev` serves.
 
 **T3 — Theme selection and the toggle.**
 
@@ -146,21 +175,40 @@ than silently staying dark. `white` and `black` are deliberately not provided: u
     function;
   - while no key is saved, a change of the OS preference re-applies (a `matchMedia` change
     listener).
-- **`components/ThemeToggle.tsx`** in each app: one icon button (lucide `Sun` / `Moon`) with
-  `aria-label` "Switch to light theme" / "Switch to dark theme" and `aria-pressed`. Placement:
-  - **admin:** sidebar footer, above Logout, with the text "Light theme" / "Dark theme";
-  - **host:** fixed top-right on every page (the game screens have no header), 44×44px;
-  - **player:** fixed top-right on every page, 44×44px. On the question page it sits above the
-    timer bar, so it never overlaps an answer button.
+- **`components/ThemeToggle.tsx`** in each app: one icon button (lucide `Sun` / `Moon`) with a
+  changing `aria-label`, "Switch to light theme" / "Switch to dark theme", and **no**
+  `aria-pressed` (a changing label plus a pressed state is announced confusingly). Placement:
+  - **admin:** sidebar footer, above Logout, with visible text "Light theme" / "Dark theme".
+    `LoginPage` and `NotAdminPage` have no sidebar, so the button is fixed top-right there.
+  - **host:** `fixed top-3 right-3 z-40`, 44×44px. Every host page root gets `pr-16` padding
+    on its top row so nothing sits under it. That covers the manage pages'
+    `justify-between` headers (their right-side actions shift left) and the game screens,
+    whose content is centered.
+  - **player:** `fixed top-3 right-3 z-40`, 44×44px. The reconnect banner stays `z-50`, so it
+    covers the toggle while shown, which is acceptable for a few seconds. Every player page
+    root gets `pt-16` so the "Question N of M" label and timer start below the button. The
+    answer buttons are therefore never overlapped.
 
 **T4 — Things Tailwind can't reach.**
 
-- **MapCanvas** (all three copies): read colors at draw time with
-  `getComputedStyle(document.documentElement).getPropertyValue('--map-water')` (and likewise for
-  `success`, `warning`, `accent`, `surface`), and build `rgb(r g b / a)` strings. Subscribe with
-  `onThemeChange` and redraw. The design's alphas stay the same.
-- **QR code:** always rendered on a `bg-qr-bg` card with `fgColor`/`bgColor` taken from the
-  `qr-*` tokens, so it scans in both themes.
+- **MapCanvas** (all three copies) reads colors at draw time through
+  `cssColor(token, alpha = 1)` in `lib/theme.ts`. It returns `` `rgb(${triple} / ${alpha})` ``
+  from `getComputedStyle(document.documentElement).getPropertyValue('--' + token).trim()`.
+  Subscribe with `onThemeChange` and redraw (unsubscribe on unmount).
+
+  | Canvas element | Today | Token / alpha |
+  |---|---|---|
+  | water (background) | `#cfe3f2` | `map-water` / 1 |
+  | zero-credit ring | `rgba(250,204,21,0.15)` | `warning` / 0.15 |
+  | full-credit ring | `rgba(34,197,94,0.3)` | `success` / 0.3 |
+  | guess dots (host) | `rgba(99,102,241,0.75)` | `accent` / 0.75 |
+  | target pin | `#16a34a` | `success` / 1 |
+  | player's own pin | `#dc2626` | `danger` / 1 |
+  | pin outline | `#fff` | `surface` / 1 |
+
+- **Both QR codes** (the lobby and the `GameLayout` join panel) are rendered on a `bg-qr-bg`
+  card, with `fgColor`/`bgColor` read via `cssColor('qr-fg')` / `cssColor('qr-bg')`, so they scan
+  in both themes.
 - **Inline `style={{ height }}`** (the NumericBuckets bars) carries no color, so nothing changes.
 - **`index.css`:** `body { background: rgb(var(--bg)); color: rgb(var(--fg)); }`, plus T7's
   global focus rule.
@@ -180,7 +228,9 @@ and switches to dark text.
 | 7 G | pink-700 `190 24 93` | white | 6.04 |
 | 8 H | teal-700 `15 118 110` | white | 5.47 |
 
-- Hover/active: `brightness-110`, a Tailwind filter with no color.
+- Hover/active: `hover:brightness-110`, a Tailwind filter with no color. The same rule applies
+  to **every hover on a status fill** (`danger`, `success`, `warning` buttons, including the
+  `ui/button` `destructive` variant). Only `accent` has a hover token.
 - Border: today each button has a lighter border in its own hue (`border-red-500` etc.). It
   becomes a neutral `border-fg/10`, because `white`/`black` and the raw hues don't exist after
   T2.
@@ -201,8 +251,11 @@ Pairs and thresholds:
   `surface-raised`; `accent-fg` on `bg` and `surface`; `on-accent` on `accent` and
   `accent-hover`; `success-fg`, `danger-fg` and `warning-fg` on `bg` and `surface`; `on-status`
   on `success` and `danger`; `on-warning` on `warning`; each `on-option-N` on `option-N`.
+  Also, composited over `surface` (the script alpha-blends): `danger-fg` on `danger/15`,
+  `success-fg` on `success/15`, and `warning-fg` on `warning/10` (the tinted status panels);
+  and `accent-fg` on `surface-raised`.
 - **3.0** (non-text UI, WCAG 1.4.11): `focus` on `bg` and `surface`; `border-strong` on `bg` and
-  `surface`.
+  `surface` (an input's border is drawn against what surrounds it, not its own fill).
 
 **T7 — Focus is always visible.**
 
@@ -210,29 +263,42 @@ Pairs and thresholds:
   `:focus-visible { outline: 3px solid rgb(var(--focus)); outline-offset: 2px; }`.
 - The `ui/button` primitives drop their own `focus:ring-*` / `ring-offset-slate-900` classes in
   favor of this rule.
-- **Never `outline-none`** without a replacement. The sweep removes the bare `focus:outline-none`
-  from inputs, which today rely on `focus:ring-2 focus:ring-indigo-500` → `focus:ring-focus`.
+- **Inputs use the global outline too.** The sweep removes their `focus:outline-none` and
+  `focus:ring-*` classes, so every control has exactly one focus indicator.
 
-**T8 — Guardrails.** `scripts/check_theme_tokens.sh` (POSIX `sh` + `grep`), run in a new CI job
-`frontend-theme` (stage `lint`, image `alpine`, merge requests only, like the others):
+**T8 — Guardrails.** `scripts/check_theme_tokens.sh` runs in a new CI job `frontend-theme`
+(stage `lint`, image `node:20-alpine`, merge requests only, like the others), with
+`apk add --no-cache grep` so **GNU grep** (with `\b`) is used, not BusyBox.
+
+- **Files** are listed with
+  `find frontend/host/src frontend/player/src frontend/admin/src -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.css' \)`
+  (POSIX `sh` has no `**` or `{a,b}` globs).
+- **Escape hatch:** a line containing `theme-ok` (e.g. `// theme-ok: <reason>`) is skipped.
 
 1. **Raw palette classes:** no matches of
    `\b(bg|text|border|ring|ring-offset|from|to|via|fill|stroke|placeholder|divide|outline|accent|shadow|decoration)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)\b`
    in `frontend/*/src/**/*.{ts,tsx,css}`.
-2. **Hex or rgb colors:** no matches of `#[0-9a-fA-F]{3,8}\b` or `rgba?\(` in
-   `frontend/*/src/**/*.{ts,tsx}`, or in `.css` files other than `theme.css`. The `rgb(var(--…))`
-   form is allowed: the check excludes matches followed by `var(`.
-3. **Identical token files:** `cmp` of `frontend/{host,player,admin}/src/theme.css`.
+2. **Hex or rgb colors:**
+   - no matches of `(^|[^&A-Za-z0-9])#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b`
+     (this skips `&#39;` entities, and words like `#add` don't fit the 3/6/8-digit shape);
+   - no matches of `rgba?\(` after a `grep -vE 'rgba?\(var\(|theme-ok'` pass (so
+     `rgb(var(--x))` is allowed);
+   - in all `.ts`/`.tsx` files **except `lib/theme.ts`** (where `cssColor` builds `rgb(...)`
+     strings), and in `.css` files other than `theme.css`.
+3. **Identical token files:** `cmp` of the three `src/theme.css`, the three
+   `tailwind.tokens.ts`, and the three `src/lib/theme.ts`.
 4. Each failure prints file:line, and the script exits 1.
 
-`check_contrast.mjs` runs in the same job (`apk add nodejs`). These checks keep T8's new UI on
+`check_contrast.mjs` runs in the same job (`node` is in the image). These checks keep T8's new UI on
 tokens too.
 
 **T9 — Context fit, beyond color.**
 
 - **Host (classroom display):**
   - on the game screens (lobby, question, results, game over), no text below 18px (`text-lg`),
-    except the QR caption;
+    except two named captions that exist for people standing at the screen, not the back row:
+    the lobby QR caption, and the `GameLayout` join panel's "Room Code" label (raised from
+    `text-[10px]` to `text-xs`);
   - prompts at least `text-3xl`;
   - in the dark theme, muted text uses `fg-muted`, never `fg-subtle`;
   - checked by reading each game page during the manual pass, and listed in §5.
@@ -264,7 +330,10 @@ tokens too.
 - New `src/theme.css` with the T1 table: the light values under `:root`, the dark ones under
   `:root.dark`, plus the T5 option tokens. Imported first in `index.css`.
 - `index.css`: the body rule from T4 and the focus rule from T7.
-- `tailwind.config.ts`: `darkMode: 'class'` and `theme.colors` replaced per T2.
+- `tailwind.tokens.ts` (**new**) and `tailwind.config.ts`: `darkMode: 'class'`, `theme.colors`
+  replaced, plus the `borderColor`/`divideColor` defaults (T2).
+- `tsconfig.node.json` / the build script: stop emitting `tailwind.config.js`, and delete the
+  stale files (T2).
 - `index.html`: the T3 inline script.
 
 ### Step 2 — `lib/theme.ts` and `components/ThemeToggle.tsx` (all three apps)
@@ -290,24 +359,34 @@ to every `.tsx` in `frontend/*/src`. Prefixes (`bg-`, `text-`, `border-`, `ring-
 | `bg-slate-600` (mostly `hover:`) | `bg-surface-hover` |
 | `text-slate-100` / `-200` / `text-white` on surfaces | `text-fg` |
 | `text-slate-300` | `text-fg-muted` |
-| `text-slate-400` | `text-fg-muted` |
-| `text-slate-500` / `-600` | `text-fg-subtle` |
-| `placeholder:text-slate-400` / `-500` | `placeholder:text-fg-subtle` |
+| `text-slate-400` | `text-fg-subtle` (unchanged look: `fg-subtle` *is* slate-400 in dark) |
+| `text-slate-500` / `-600` | `text-fg-subtle` (brightened in dark: the 3.75 contrast fix) |
+| `text-slate-900` (on yellow/white backers) | `text-on-warning` or `text-qr-fg` by context (manual) |
+| `placeholder:text-slate-400` / `-500`, `placeholder-slate-*` | `placeholder:text-fg-subtle` |
 | `border-slate-700` / `divide-slate-700` | `border-border` / `divide-border` |
 | `border-slate-600` / `-500` | `border-border-strong` |
 | `bg-indigo-600` | `bg-accent` |
 | `bg-indigo-500` / `hover:bg-indigo-500` | `bg-accent-hover` |
 | `text-indigo-300` / `-400` | `text-accent-fg` |
-| `ring-indigo-500` / `border-indigo-500` / `-400` | `ring-focus` / `border-accent` |
-| `text-green-300` / `-400` | `text-success-fg` |
-| `bg-green-500` / `-600` | `bg-success` |
-| `bg-green-900/NN` | `bg-success/15` |
+| `ring-indigo-*`, `ring-slate-500`, `ring-red-500` | removed (T7 global outline), or `ring-focus` where a ring is a selection state, not focus |
+| `border-indigo-*` | `border-accent` |
+| `bg-indigo-900` / `text-indigo-700` | `bg-accent/20` / `text-accent-fg` |
+| `accent-indigo-500` (checkbox `accent-color`) | `accent-accent` |
+| `bg-white` | QR backers → `bg-qr-bg`; the lobby toggle knob → `bg-on-accent` (manual) |
+| `border-white` | `border-on-accent` |
+| `text-green-300` / `-400` / `-500` | `text-success-fg` |
+| `bg-green-500` / `-600` / `-700` | `bg-success` |
+| `bg-green-900`, `bg-green-900/NN` | `bg-success/15` |
+| `border-green-*` | `border-success` |
 | `text-red-300` / `-400` | `text-danger-fg` |
 | `bg-red-500` / `-600` / `-700` | `bg-danger` |
-| `bg-red-900/NN`, `border-red-500/NN` | `bg-danger/15`, `border-danger/40` |
+| `bg-red-900`, `bg-red-900/NN`, `border-red-500/NN` | `bg-danger/15`, `border-danger/40` |
 | `text-amber-300` / `-400`, `text-yellow-400` | `text-warning-fg` |
-| `bg-amber-500` / `bg-yellow-500` / `-600` | `bg-warning` |
+| `bg-amber-500` / `bg-yellow-400` / `-500` / `-600` (incl. `/90`) | `bg-warning` (keeps any `/NN`) |
+| `text-yellow-100` (reconnect banner, on `bg-warning`) | `text-on-warning` |
 | `bg-amber-500/10`, `bg-amber-900/NN`, `bg-yellow-100` | `bg-warning/10` |
+| `border-amber-*` (incl. `/40`) | `border-warning` (keeps `/NN`) |
+| any `hover:bg-<status>-*` | `hover:brightness-110` (T5) |
 | `ring-offset-slate-900` | removed (T7) |
 
 **Context decides `text-white`.** On an accent, danger, success or option background it
@@ -328,8 +407,9 @@ both themes.
 
 ### Step 4 — MapCanvas and QR (T4)
 
-All three `MapCanvas.tsx` copies: a `cssColor(name, alpha?)` helper and a redraw on
-`onThemeChange`. The host `LobbyPage` QR card uses the `qr-*` tokens.
+All three `MapCanvas.tsx` copies use `cssColor` (T4 table) and redraw on `onThemeChange`. Both
+host QR codes use the `qr-*` tokens: `pages/game/LobbyPage.tsx` and
+`pages/game/GameLayout.tsx` (join panel).
 
 ### Step 5 — Answer buttons and focus (T5, T7)
 
@@ -349,9 +429,17 @@ prompts to at least `text-3xl`.
 
 ### Step 8 — Screenshots and evidence
 
-- `scripts/ui_screenshots.mjs`: the tour used for the "before" set. It takes
-  `<outDir> [light|dark]`, seeds `buzzer-theme` and the emulated `colorScheme`, creates a
-  temporary 3-question game, and deletes it afterwards.
+- `scripts/ui_screenshots.mjs` (**new in the repo**; the "before" set was taken with this same
+  script run from a scratch folder). It takes `<outDir> [light|dark]`.
+  - **Needs:** the stack running behind nginx at `BASE_URL` (default `http://localhost:8080`),
+    migrated, with at least one course. It uses "Demo Course" from `scripts/seed_demo.py` if
+    present, else the first course.
+  - **Logs in** as `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defaults `admin` / `change_me_admin`, as
+    in `.env.template`).
+  - **Theme:** seeds `buzzer-theme` and the emulated `colorScheme`.
+  - **Game:** creates a temporary game "UI tour (screenshots)" with one multiple-choice, one
+    numeric and one map_pin question, plays it (host on a 1440×900 desktop, player on a 390×844
+    phone), and deletes it afterwards.
   - It needs `npm i playwright` and `npx playwright install chromium`, run in a scratch folder,
     or as a `devDependency` of a new `scripts/package.json`. The latter is the choice, so
     `scripts/` stays self-contained.
@@ -373,8 +461,8 @@ Rewrite the **Theming (T9)** gotchas in each `frontend/*/src/CLAUDE.md` and
 
 | Area | Files |
 |---|---|
-| Per app ×3 | `src/theme.css` (**new**), `src/index.css`, `tailwind.config.ts`, `index.html`, `src/lib/theme.ts` (**new**), `src/components/ThemeToggle.tsx` (**new**), `src/components/ui/*`, `src/components/MapCanvas.tsx`, every page with palette classes (~47 files) |
-| Host only | `pages/game/LobbyPage.tsx` (QR), `components/NumericBuckets.tsx` |
+| Per app ×3 | `src/theme.css` (**new**), `tailwind.tokens.ts` (**new**), `src/index.css`, `tailwind.config.ts`, `tsconfig.node.json`, `index.html`, `src/lib/theme.ts` (**new**), `src/components/ThemeToggle.tsx` (**new**), `src/components/ui/*`, `src/components/MapCanvas.tsx`, every page with palette classes (~50 files, plus T8's) |
+| Host only | `pages/game/LobbyPage.tsx` and `pages/game/GameLayout.tsx` (QR codes, caption), `components/NumericBuckets.tsx` |
 | Player only | `pages/game/QuestionPage.tsx` (`OPTION_COLORS`) |
 | Repo | `scripts/check_theme_tokens.sh`, `scripts/check_contrast.mjs`, `scripts/ui_screenshots.mjs`, `scripts/package.json` (**new**), `.gitlab-ci.yml`, `docs/ui/**`, context docs |
 
@@ -397,7 +485,8 @@ Rewrite the **Theming (T9)** gotchas in each `frontend/*/src/CLAUDE.md` and
 - **Toggle behavior:**
   - first visit with OS dark → dark, and OS light → light;
   - toggle, reload → the choice persists;
-  - toggle in admin, open the host app → same theme (shared key);
+  - toggle in admin, open the host app → same theme (shared key; only behind nginx on
+    `localhost:8080`, since the Vite dev servers are separate origins);
   - no flash of the wrong theme on load (a hard reload with throttled CPU in devtools).
 - Existing integration tests still pass, since the backend is unchanged.
 
@@ -405,13 +494,13 @@ Rewrite the **Theming (T9)** gotchas in each `frontend/*/src/CLAUDE.md` and
 
 ## 6. Coordination and risks
 
-- **T8 is changing the same files** (the editors for image upload, the player question page
-  for image options, new image-management UI).
-  - Plan: **land T9 fast.** First the tokens, Tailwind, the sweep and the guardrails as one MR,
-    then the screenshots/evidence as a follow-up if time is short.
-  - T8 rebases onto it, and its new UI uses tokens; the CI guardrail tells it when it doesn't.
-  - Tell Bill when the T9 MR opens, with the mapping table (§4 Step 3) so his conflict
-    resolution is mechanical.
+- **T8 is changing the same files** (both editors, the player question page, `MapCanvas`, the
+  host game screens), and it was approved (!11) before T9's sweep started.
+  - Plan (changed after the draft): **T8 merges first; T9 merges `main` before Step 3**, so one
+    sweep covers T8's new UI and nobody resolves conflicts in ~50 files.
+  - Bill holds new frontend work until T9 merges; the CI guardrail keeps later work on tokens.
+  - T9 still lands fast: tokens, Tailwind, the sweep and the guardrails as one MR, with the
+    screenshot evidence as a follow-up commit if time is short.
 - **The sweep is large.** ~820 replacements; the codemod makes it mechanical, and the replaced
   palette (T2) makes misses visible. The risk is wrong role choices (e.g. `text-white` on a
   surface vs on accent), which the manual pass and the two-theme screenshots catch.
@@ -427,4 +516,29 @@ Rewrite the **Theming (T9)** gotchas in each `frontend/*/src/CLAUDE.md` and
 
 ## 7. Goldfish revision log
 
-*(Filled in after the Goldfish test.)*
+Round 1: a fresh subagent given only this doc, `instructions.md` T9 and the frontend context
+docs. Its code claims were verified before acting: the four contrast failures in the draft's
+values, the stale `tailwind.config.js`, the second QR code, the player banner and the
+`#dc2626` pin.
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | **Blocker:** the draft's values failed its own contrast pairs (white on green-600 3.30, on indigo-500 4.47; slate-400 on slate-700 4.04; borders far below 3:1) | Values recomputed to pass every pair: `success` green-700, `accent-hover` indigo-700, dark `surface-raised` `41 53 72`, `border-strong` slate-500 / `120 134 156`, light `success-fg` green-800 (T1) |
+| 2 | The guardrail would flag the design's own `rgb(...)` canvas strings | `cssColor` lives in `lib/theme.ts`, which is exempt; `rgb(var(` filtered with `grep -v` (T4, T8) |
+| 3 | `**`/`{a,b}` globs and BusyBox grep in `sh` | `find` for file lists; `apk add grep` for GNU grep; `node:20-alpine` image (T8) |
+| 4 | The hex regex would match entities/ids | Tighter regex plus a `theme-ok` escape hatch (T8) |
+| 5 | Replacing `colors` makes the default border `currentColor` | `borderColor`/`divideColor` `DEFAULT` = `border` token (T2) |
+| 6 | A stale emitted `tailwind.config.js` shadows the `.ts` in dev | Stop emitting it; delete the stale files (T2, Step 1) |
+| 7 | Classes missing from the mapping table | Rows added; ring/border row split (Step 3) |
+| 8 | Status hover shades collapse | `hover:brightness-110` on status fills (T5, Step 3) |
+| 9 | `text-slate-400` → `fg-muted` would brighten most text | `text-slate-400` → `fg-subtle` (Step 3) |
+| 10 | Canvas colors incomplete (`#dc2626`, outline) | Full element → token table (T4) |
+| 11 | A second QR and a 10px caption in host `GameLayout` | Both QRs themed; captions named as exemptions (T4, T9, Step 4) |
+| 12 | The toggle would overlap the player banner and headers | z-order and reserved `pr-16`/`pt-16` insets (T3) |
+| 13 | The screenshot script wasn't in the repo or specified | Marked new; base URL, credentials, prerequisites (Step 8) |
+| 14 | Tinted panels and `accent-fg` on raised unchecked | Composited pairs added (T6) |
+| 15 | `aria-pressed` plus a changing label | Changing label, no `aria-pressed` (T3) |
+| 16 | Double focus indicator on inputs | Inputs use the global outline only (T7) |
+| 17 | Identical configs unenforced; dev-port caveat | `tailwind.tokens.ts` + `lib/theme.ts` in the `cmp` check; caveat in §5 (T2, T8) |
+| 18 | Counts off (~910 in ~50 files) | Range stated (§1) |
+| — | T8 approved before the sweep | Order flipped: T8 first, then T9 merges `main` before Step 3 (header, §6) |
