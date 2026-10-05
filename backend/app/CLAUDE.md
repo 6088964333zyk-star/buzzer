@@ -64,8 +64,8 @@ call the REST API for setup and use Socket.IO for play.
 - **Redis `session:*` keys are never expired or cleaned after a normal game end** (confirmed
   by reading, not yet observed live) — see `services/`. Question update/delete integrity is
   handled by `services/question_service` (T4).
-- **Known access-control soft spots** (see `routers/` and `websocket/`): host `merge-guest`
-  can touch any guest; `oauth2-callback` trusts a header. (`rejoin_room` promoting any ADMIN
-  to host was fixed.)
+- **Known access-control soft spots** (see `routers/` and `websocket/`): `oauth2-callback`
+  trusts a header. (Host `merge-guest` was scoped to its session and course, and
+  `rejoin_room` no longer promotes any ADMIN to host — both fixed later.)
 - Rate limits are disabled in development, and many rejection paths only log in
   stress-test mode, so local runs hide some failures.
