@@ -394,6 +394,37 @@ The file format is:
 
 Question order is determined by array position; `order_index` is assigned automatically on import.
 
+**Version 2 (games with images, T8).** A game that has uploaded images exports as `"version": 2`
+with a top-level `images` array; inside question configs, image ids are replaced by each
+image's `ref`. Import accepts both versions and re-creates the images in the new game. A game
+without images still exports as version 1. Details: `docs/design-t8-images.md` (D6).
+
+```json
+{
+  "format": "buzzer/game",
+  "version": 2,
+  "game": { "title": "...", "description": "...", "max_players": 150 },
+  "images": [
+    { "ref": "img1", "filename": "campus.png", "mime": "image/png", "data": "<base64>" }
+  ],
+  "questions": [
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Where is the library?",
+      "time_limit_seconds": 30,
+      "points_value": 1,
+      "config": { "aspectRatio": 1.5, "mapImageId": "img1" },
+      "answer_data": { "target": { "x": 0.2, "y": 0.25 }, "fullRadius": 0.05, "zeroRadius": 0.2 }
+    }
+  ]
+}
+```
+
+Image keys in any question's `config`: `imageId` (prompt image, shown on the host screen),
+`optionImages` (multiple choice / multi-select, one id or `null` per option) and `mapImageId`
+(`map_pin` background). Images are PNG, JPEG, GIF or WebP up to 2 MB.
+
 ### Export session scores
 
 After a game session completes, the host (or an admin) can download a CSV of all player scores:

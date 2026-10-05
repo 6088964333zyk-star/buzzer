@@ -12,8 +12,10 @@ signs in, starts a room for a course and game, and drives the game while players
 - `index.css` — Tailwind directives and a hardcoded dark body background/text color.
 - `pages/` — Login, Home (course/game pick, create/resume room), `manage/` (per-course games,
   questions, roster, session downloads), and `game/` (live screens). See `pages/CLAUDE.md`.
-- `components/` — `ui/` primitives: `Button`, `Card`, `Input`, `TimerBar`. See `components/CLAUDE.md`.
-- `lib/` — `api.ts` REST client (`get`/`post`/`put`/`patch`/`delete`/`download`) and `cn`. See `lib/CLAUDE.md`.
+- `components/` — `ui/` primitives (`Button`, `Card`, `Input`, `TimerBar`) plus `MapCanvas`/`MapPicker`
+  (T7), `NumericBuckets` (T7) and `ImageLibrary`/`ImagePicker` (T8). See `components/CLAUDE.md`.
+- `lib/` — `api.ts` REST client (`get`/`post`/`put`/`patch`/`delete`/`postForm`/`putForm`/`download`),
+  `images.ts` (public image URLs, T8), `mapPin.ts`, `numeric.ts` and `cn`. See `lib/CLAUDE.md`.
 - `types/` — Hand-written Socket.io payload shapes. See `types/CLAUDE.md`.
 
 ## How it fits in
