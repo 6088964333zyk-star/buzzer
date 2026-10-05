@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import type { AnswerReveal, HostQuestionSummaryItem } from '../../types/game';
 import { MapCanvas } from '../../components/MapCanvas';
 import { distributionDots } from '../../lib/mapPin';
+import { imageUrl } from '../../lib/images';
 
 const TARGET_BUCKETS = 8;
 
@@ -61,19 +62,19 @@ function AnswerBar({ label, count, total, correct, colorClass }: {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
     <div className="flex items-center gap-3">
-      <span className={`w-6 text-center font-bold text-sm shrink-0 ${correct ? 'text-green-400' : 'text-slate-400'}`}>
+      <span className={`w-6 text-center font-bold text-lg shrink-0 ${correct ? 'text-success-fg' : 'text-fg-subtle'}`}>
         {label}
       </span>
-      <div className="flex-1 h-6 bg-slate-800 rounded overflow-hidden">
+      <div className="flex-1 h-6 bg-surface-raised rounded overflow-hidden">
         <div
           className={`h-full rounded transition-all duration-500 ${colorClass}`}
           style={{ width: `${Math.max(pct, count > 0 ? 2 : 0)}%` }}
         />
       </div>
-      <span className={`w-8 text-right text-sm font-semibold shrink-0 ${correct ? 'text-green-400' : 'text-slate-400'}`}>
+      <span className={`w-8 text-right text-lg font-semibold shrink-0 ${correct ? 'text-success-fg' : 'text-fg-subtle'}`}>
         {count}
       </span>
-      {correct && <span className="text-green-500 text-xs font-bold shrink-0">✓</span>}
+      {correct && <span className="text-success-fg text-lg font-bold shrink-0">✓</span>}
       {!correct && <span className="w-4 shrink-0" />}
     </div>
   );
@@ -112,34 +113,34 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
   }
 
   return (
-    <div className="w-full bg-slate-800/60 border border-slate-700 rounded-2xl p-5 space-y-4">
+    <div className="w-full bg-surface/60 border border-border rounded-2xl p-5 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-slate-500 text-xs uppercase tracking-widest font-semibold">
+          <span className="text-fg-subtle text-lg uppercase tracking-widest font-semibold">
             Q{index + 1}
           </span>
-          <span className="text-slate-600">·</span>
-          <span className="text-slate-400 text-xs uppercase tracking-widest">
+          <span className="text-fg-subtle">·</span>
+          <span className="text-fg-subtle text-lg uppercase tracking-widest">
             {typeLabel[type] ?? type}
           </span>
-          <span className="text-slate-600">·</span>
-          <span className={`text-xs uppercase tracking-widest font-semibold ${gradingType === 'COMPLETENESS' ? 'text-amber-400' : 'text-indigo-400'}`}>
+          <span className="text-fg-subtle">·</span>
+          <span className={`text-lg uppercase tracking-widest font-semibold ${gradingType === 'COMPLETENESS' ? 'text-warning-fg' : 'text-accent-fg'}`}>
             {gradingType === 'COMPLETENESS' ? 'Participation' : 'Accuracy'}
           </span>
-          <span className="text-slate-600">·</span>
-          <span className="text-slate-400 text-xs">{pointsValue} {pointsValue === 1 ? 'pt' : 'pts'}</span>
+          <span className="text-fg-subtle">·</span>
+          <span className="text-fg-subtle text-lg">{pointsValue} {pointsValue === 1 ? 'pt' : 'pts'}</span>
         </div>
-        <div className="text-right text-xs text-slate-500 shrink-0">
-          <span className="text-slate-300 font-semibold">{totalAnswered}</span>/{totalPlayers} answered
+        <div className="text-right text-lg text-fg-subtle shrink-0">
+          <span className="text-fg-muted font-semibold">{totalAnswered}</span>/{totalPlayers} answered
           {avgAnswerTimeMs !== null && (
-            <span className="ml-2 text-slate-500">· avg {(avgAnswerTimeMs / 1000).toFixed(1)}s</span>
+            <span className="ml-2 text-fg-subtle">· avg {(avgAnswerTimeMs / 1000).toFixed(1)}s</span>
           )}
         </div>
       </div>
 
       {/* Prompt */}
-      <p className="text-slate-100 text-lg font-semibold leading-snug">{prompt}</p>
+      <p className="text-fg text-lg font-semibold leading-snug">{prompt}</p>
 
       {/* Distribution */}
       <div className="space-y-2">
@@ -148,6 +149,7 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
           <div className="max-w-md">
             <MapCanvas
               aspectRatio={reveal.aspectRatio}
+              imageUrl={config.mapImageId ? imageUrl(config.mapImageId) : null}
               target={reveal.target}
               fullRadius={reveal.fullRadius}
               dots={distributionDots(answerDistribution)}
@@ -165,16 +167,16 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
           const correct = isCorrectIndex(i);
           return (
             <div key={i} className="space-y-0.5">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span className={`font-bold ${correct ? 'text-green-400' : ''}`}>{optionLabel(i)}.</span>
-                <span className={correct ? 'text-green-300' : ''}>{opt}</span>
+              <div className="flex items-center gap-2 text-lg text-fg-subtle">
+                <span className={`font-bold ${correct ? 'text-success-fg' : ''}`}>{optionLabel(i)}.</span>
+                <span className={correct ? 'text-success-fg' : ''}>{opt}</span>
               </div>
               <AnswerBar
                 label={optionLabel(i)}
                 count={count}
                 total={totalPlayers}
                 correct={correct}
-                colorClass={correct ? 'bg-green-500' : 'bg-slate-600'}
+                colorClass={correct ? 'bg-success' : 'bg-surface-hover'}
               />
             </div>
           );
@@ -190,7 +192,7 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
               count={count}
               total={totalPlayers}
               correct={correct}
-              colorClass={correct ? 'bg-green-500' : 'bg-red-700'}
+              colorClass={correct ? 'bg-success' : 'bg-danger'}
             />
           );
         })}
@@ -198,16 +200,16 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
         {type === 'fill_in_the_blank' && (
           <div className="space-y-2">
             {reveal.type === 'fill_in_the_blank' && (
-              <p className="text-slate-400 text-sm">
+              <p className="text-fg-subtle text-lg">
                 Accepted:{' '}
                 {(reveal as { type: 'fill_in_the_blank'; acceptedAnswers: string[]; editDistance: number }).acceptedAnswers.map((a, i, arr) => (
                   <span key={i}>
-                    <span className="text-green-300 font-mono">"{a}"</span>
-                    {i < arr.length - 1 && <span className="text-slate-500">, </span>}
+                    <span className="text-success-fg font-mono">"{a}"</span>
+                    {i < arr.length - 1 && <span className="text-fg-subtle">, </span>}
                   </span>
                 ))}
                 {(reveal as { type: 'fill_in_the_blank'; acceptedAnswers: string[]; editDistance: number }).editDistance > 0 && (
-                  <span className="text-slate-500 ml-1">
+                  <span className="text-fg-subtle ml-1">
                     (±{(reveal as { type: 'fill_in_the_blank'; acceptedAnswers: string[]; editDistance: number }).editDistance} typo)
                   </span>
                 )}
@@ -218,20 +220,20 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
       </div>
 
       {/* Footer stats */}
-      <div className="flex items-center gap-4 pt-1 border-t border-slate-700 text-sm">
+      <div className="flex items-center gap-4 pt-1 border-t border-border text-lg">
         {gradingType === 'ACCURACY' ? (
           <>
-            <span className="text-green-400 font-semibold">{correctCount} correct</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-400">{correctPct}% accuracy</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-400">{answeredPct}% responded</span>
+            <span className="text-success-fg font-semibold">{correctCount} correct</span>
+            <span className="text-fg-subtle">·</span>
+            <span className="text-fg-subtle">{correctPct}% accuracy</span>
+            <span className="text-fg-subtle">·</span>
+            <span className="text-fg-subtle">{answeredPct}% responded</span>
           </>
         ) : (
           <>
-            <span className="text-amber-400 font-semibold">{totalAnswered} completed</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-400">{answeredPct}% response rate</span>
+            <span className="text-warning-fg font-semibold">{totalAnswered} completed</span>
+            <span className="text-fg-subtle">·</span>
+            <span className="text-fg-subtle">{answeredPct}% response rate</span>
           </>
         )}
       </div>
@@ -250,7 +252,7 @@ export default function GameOverPage() {
   if (!gameOver) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-slate-400">Loading final results…</p>
+        <p className="text-fg-subtle">Loading final results…</p>
       </div>
     );
   }
@@ -267,48 +269,48 @@ export default function GameOverPage() {
   return (
     <div className="min-h-screen flex flex-col items-center p-8 gap-8">
       <div className="text-center">
-        <h1 className="text-5xl font-black text-slate-100">Game Over!</h1>
-        <p className="text-slate-400 mt-2">{playerCount} players · Max possible: {maxPossibleScore.toLocaleString()} pts</p>
+        <h1 className="text-5xl font-black text-fg">Game Over!</h1>
+        <p className="text-fg-subtle mt-2">{playerCount} players · Max possible: {maxPossibleScore.toLocaleString()} pts</p>
       </div>
 
       {/* Histogram */}
       <div className="w-full max-w-3xl">
-        <p className="text-slate-400 text-sm uppercase tracking-widest text-center mb-4">Score Distribution</p>
+        <p className="text-fg-subtle text-lg uppercase tracking-widest text-center mb-4">Score Distribution</p>
         <div className="flex items-end gap-2 h-48">
           {buckets.map((bucket, i) => {
             const heightPct = (bucket.count / maxCount) * 100;
             return (
               <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-slate-300 text-sm font-semibold">
+                <span className="text-fg-muted text-lg font-semibold">
                   {bucket.count > 0 ? bucket.count : ''}
                 </span>
-                <div className="w-full bg-slate-800 rounded-t-lg relative" style={{ height: '160px' }}>
+                <div className="w-full bg-surface-raised rounded-t-lg relative" style={{ height: '160px' }}>
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-indigo-500 rounded-t-lg transition-all duration-700"
+                    className="absolute bottom-0 left-0 right-0 bg-accent rounded-t-lg transition-all duration-700"
                     style={{ height: `${Math.max(heightPct, bucket.count > 0 ? 4 : 0)}%` }}
                   />
                 </div>
-                <span className="text-slate-500 text-xs">{bucket.label}</span>
+                <span className="text-fg-subtle text-lg">{bucket.label}</span>
               </div>
             );
           })}
         </div>
-        <p className="text-slate-600 text-xs text-center mt-1">Score (points) →</p>
+        <p className="text-fg-subtle text-lg text-center mt-1">Score (points) →</p>
       </div>
 
       {/* Summary stats */}
       <div className="flex gap-12 text-center">
         <div>
-          <p className="text-slate-400 text-xs uppercase tracking-widest">Average</p>
-          <p className="text-white text-2xl font-bold">{avg.toLocaleString()}</p>
+          <p className="text-fg-subtle text-lg uppercase tracking-widest">Average</p>
+          <p className="text-fg text-2xl font-bold">{avg.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-xs uppercase tracking-widest">High Score</p>
-          <p className="text-white text-2xl font-bold">{high.toLocaleString()}</p>
+          <p className="text-fg-subtle text-lg uppercase tracking-widest">High Score</p>
+          <p className="text-fg text-2xl font-bold">{high.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-slate-400 text-xs uppercase tracking-widest">Players</p>
-          <p className="text-white text-2xl font-bold">{playerCount}</p>
+          <p className="text-fg-subtle text-lg uppercase tracking-widest">Players</p>
+          <p className="text-fg text-2xl font-bold">{playerCount}</p>
         </div>
       </div>
 
@@ -317,7 +319,7 @@ export default function GameOverPage() {
       {/* Per-question breakdown */}
       {questionSummary.length > 0 && (
         <div className="w-full max-w-3xl space-y-4 pb-8">
-          <p className="text-slate-400 text-sm uppercase tracking-widest text-center">
+          <p className="text-fg-subtle text-lg uppercase tracking-widest text-center">
             Question Breakdown
           </p>
           {questionSummary.map((item, i) => (

@@ -91,7 +91,7 @@ export default function RosterPage() {
       <ManageNav courseId={courseId} />
 
       <div className="flex items-center justify-between">
-        <p className="text-slate-400 text-sm">{active} active · {entries.length - active} inactive</p>
+        <p className="text-fg-subtle text-sm">{active} active · {entries.length - active} inactive</p>
         <input
           ref={fileRef}
           type="file"
@@ -104,20 +104,20 @@ export default function RosterPage() {
         </Button>
       </div>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <p className="text-danger-fg text-sm">{error}</p>}
 
       {pending && (
         <Card>
-          <CardHeader><h3 className="font-semibold text-slate-100">Replace roster from {pending.file}?</h3></CardHeader>
+          <CardHeader><h3 className="font-semibold text-fg">Replace roster from {pending.file}?</h3></CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-slate-300 text-sm">
+            <p className="text-fg-muted text-sm">
               {pending.preview.added.length} new · {pending.preview.updated.length} updated ·{' '}
-              <span className={pending.preview.deactivated.length ? 'text-red-400 font-semibold' : ''}>
+              <span className={pending.preview.deactivated.length ? 'text-danger-fg font-semibold' : ''}>
                 {pending.preview.deactivated.length} will be deactivated
               </span>
             </p>
             {pending.preview.deactivated.length > 0 && (
-              <p className="text-red-300 text-xs">
+              <p className="text-danger-fg text-xs">
                 This upload replaces the roster. Students not in the file can no longer join:{' '}
                 {pending.preview.deactivated.slice(0, 10).join(', ')}
                 {pending.preview.deactivated.length > 10 ? ` and ${pending.preview.deactivated.length - 10} more` : ''}
@@ -134,7 +134,7 @@ export default function RosterPage() {
       )}
 
       {result && (
-        <p className="text-green-400 text-sm">
+        <p className="text-success-fg text-sm">
           Uploaded: {result.imported} new, {result.updated} updated, {result.deactivated} deactivated.
           {result.errors.length > 0 && ` ${result.errors.length} row(s) skipped.`}
         </p>
@@ -143,7 +143,7 @@ export default function RosterPage() {
       <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="text-slate-400 text-left">
+            <thead className="text-fg-subtle text-left">
               <tr>
                 <th className="px-4 py-2">NetID</th>
                 <th className="px-4 py-2">Name</th>
@@ -153,10 +153,10 @@ export default function RosterPage() {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-t border-slate-700">
-                  <td className="px-4 py-2 font-mono text-slate-200">{e.netid}</td>
-                  <td className="px-4 py-2 text-slate-200">{e.full_name}</td>
-                  <td className="px-4 py-2 text-slate-400">{e.email}</td>
+                <tr key={e.id} className="border-t border-border">
+                  <td className="px-4 py-2 font-mono text-fg">{e.netid}</td>
+                  <td className="px-4 py-2 text-fg">{e.full_name}</td>
+                  <td className="px-4 py-2 text-fg-subtle">{e.email}</td>
                   <td className="px-4 py-2">
                     <Button size="sm" variant={e.is_active ? 'outline' : 'ghost'} onClick={() => void toggle(e)}>
                       {e.is_active ? 'Active' : 'Inactive'}
@@ -165,7 +165,7 @@ export default function RosterPage() {
                 </tr>
               ))}
               {entries.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No students yet.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-fg-subtle">No students yet.</td></tr>
               )}
             </tbody>
           </table>

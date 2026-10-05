@@ -1,0 +1,12 @@
+{
+  "name": "buzzer-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Node tooling for repo scripts: the T9 UI screenshot tour (ui_screenshots.mjs).",
+  "scripts": {
+    "screenshots": "node ui_screenshots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

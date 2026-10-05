@@ -6,10 +6,14 @@ Small shared helpers: the REST client, the Tailwind class-merge utility, and a J
 ## Contents
 - `api.ts` — `api.get` / `api.post` wrapping `fetch('/api' + path)`. Adds `Authorization: Bearer`
   from `localStorage.token`, throws `Error(detail)` on non-2xx, returns `{}` for empty bodies.
+- `images.ts` — `imageUrl(id, version?)` → `/api/images/{id}` (public, no auth; T8). Editors pass
+  the image's `sha256` as `version` (`?v=`) so a replaced image reloads; game screens don't.
+  Also the `GameImage` list type. Identical in all three apps.
 - `numeric.ts` — `numeric` question helpers (T7, `docs/design-t7-numeric.md`): `parseNumber`
   (plain or `e` notation, no commas), `formatNumber`/`withUnit` (display only — they round),
   `effectiveTolerances`, `isFullCredit` (same rule and epsilon as the server) and
   `describeOffBy`. Mirrors `backend/app/services/numeric.py`.
+- `theme.ts` — T9 light/dark state: `getTheme`, `setTheme` (saves `localStorage['buzzer-theme']`, shared by all three apps), `onThemeChange(cb)` (returns an unsubscribe), and `cssColor(token, alpha)` for canvas/QR code. Follows the OS preference until the user picks. The inline script in `index.html` applies the theme before React renders. Identical in all three apps.
 - `utils.ts` — `cn(...)` (`clsx` + `tailwind-merge`) and `isTokenExpired(token)`, which decodes
   the JWT payload in the browser and compares `exp` to now (no signature check).
 

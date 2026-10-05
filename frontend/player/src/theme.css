@@ -1,0 +1,92 @@
+/*
+ * Buzzer design tokens (T9). Byte-identical in host, player and admin; CI checks this with
+ * `cmp` (scripts/check_theme_tokens.sh). Each value is an RGB triple so Tailwind's opacity
+ * modifiers work (`bg-surface/60`). Tailwind maps these names in tailwind.tokens.ts.
+ * Contrast pairs are verified by scripts/check_contrast.mjs. See docs/design-t9-theming.md.
+ */
+
+:root {
+  /* Light theme */
+  --bg: 248 250 252;
+  --surface: 255 255 255;
+  --surface-raised: 241 245 249;
+  --surface-hover: 226 232 240;
+  --border: 226 232 240;
+  --border-strong: 120 134 156;
+
+  --fg: 15 23 42;
+  --fg-muted: 71 85 105;
+  --fg-subtle: 85 98 120;
+
+  --accent: 79 70 229;
+  --accent-hover: 67 56 202;
+  --on-accent: 255 255 255;
+  --accent-fg: 67 56 202;
+
+  --success: 21 128 61;
+  --success-fg: 22 101 52;
+  --danger: 220 38 38;
+  --danger-fg: 185 28 28;
+  --warning: 245 158 11;
+  --warning-fg: 180 83 9;
+  --on-status: 255 255 255;
+  --on-warning: 15 23 42;
+
+  --focus: 79 70 229;
+
+  --map-water: 207 227 242;
+  --qr-bg: 255 255 255;
+  --qr-fg: 0 0 0;
+
+  /* Player answer buttons: the same in both themes (design T5) */
+  --option-1: 185 28 28;
+  --option-2: 29 78 216;
+  --option-3: 250 204 21;
+  --option-4: 21 128 61;
+  --option-5: 126 34 206;
+  --option-6: 194 65 12;
+  --option-7: 190 24 93;
+  --option-8: 15 118 110;
+  --on-option-1: 255 255 255;
+  --on-option-2: 255 255 255;
+  --on-option-3: 15 23 42;
+  --on-option-4: 255 255 255;
+  --on-option-5: 255 255 255;
+  --on-option-6: 255 255 255;
+  --on-option-7: 255 255 255;
+  --on-option-8: 255 255 255;
+}
+
+:root.dark {
+  /* Dark theme: today's look, with the contrast fixes from the design doc */
+  --bg: 15 23 42;
+  --surface: 30 41 59;
+  --surface-raised: 41 53 72;
+  --surface-hover: 71 85 105;
+  --border: 51 65 85;
+  --border-strong: 100 116 139;
+
+  --fg: 241 245 249;
+  --fg-muted: 203 213 225;
+  --fg-subtle: 148 163 184;
+
+  --accent: 79 70 229;
+  --accent-hover: 67 56 202;
+  --on-accent: 255 255 255;
+  --accent-fg: 165 180 252;
+
+  --success: 21 128 61;
+  --success-fg: 74 222 128;
+  --danger: 220 38 38;
+  --danger-fg: 248 113 113;
+  --warning: 245 158 11;
+  --warning-fg: 251 191 36;
+  --on-status: 255 255 255;
+  --on-warning: 15 23 42;
+
+  --focus: 129 140 248;
+
+  --map-water: 30 58 82;
+  --qr-bg: 255 255 255;
+  --qr-fg: 0 0 0;
+}

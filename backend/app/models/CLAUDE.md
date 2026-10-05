@@ -15,6 +15,9 @@ see `services/state_service.py`.
 - `game.py` — `Game` (with nullable `course_id`, set once — see Gotchas); `Question` (`type`, `grading_type`, `prompt`, JSON `config` and
   `answer_data`, `time_limit_seconds`, float `points_value`, `order_index`);
   `UserGameAccess` (user↔game, no role).
+- `image.py` — `QuestionImage` (T8): random 32-hex `id`, `game_id` (FK, `ON DELETE CASCADE`),
+  `filename`, detected `mime`, `data` (MEDIUMBLOB, **deferred** — load it explicitly),
+  `size_bytes`, displayed `width`/`height`, `sha256` (the ETag), microsecond timestamps.
 - `session.py` — `GameSession` (one played room: 6-char `room_code`, `game_id`, `course_id`,
   host, status `LOBBY`/`IN_PROGRESS`/`COMPLETED`/`ABANDONED`); `SessionScore` (one row per
   player per answered question: points, correctness, time, raw `answer_data`).
@@ -44,3 +47,7 @@ migration (`backend/app/migrations/versions/`, run `alembic revision --autogener
 - `Question.config` / `answer_data` are free-form JSON; their per-type shape is only enforced
   by the Pydantic validator on create (see `schemas/CLAUDE.md`).
 - `points_value` and `points_awarded` are floats (migration 003 changed them from int).
+- **`QuestionImage` has no ORM relationship from `Game`** on purpose: the DB cascade deletes a
+  game's images, and a relationship without `passive_deletes` would try to null `game_id`
+  first. Query images by `game_id`. Questions reference images only by id inside `config`
+  (no FK), so `services/image_service` guards deletes (409 while in use).

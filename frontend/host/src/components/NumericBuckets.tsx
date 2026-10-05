@@ -8,11 +8,11 @@ import { withUnit } from '../lib/numeric';
  * game over. Plain divs; labels stay readable from the back of a classroom.
  */
 const BUCKETS = [
-  { key: 'zero_low', label: 'Way under', bar: 'bg-slate-600' },
-  { key: 'partial_low', label: 'Close (under)', bar: 'bg-indigo-500' },
-  { key: 'full', label: 'Spot on', bar: 'bg-green-500' },
-  { key: 'partial_high', label: 'Close (over)', bar: 'bg-indigo-500' },
-  { key: 'zero_high', label: 'Way over', bar: 'bg-slate-600' },
+  { key: 'zero_low', label: 'Way under', bar: 'bg-surface-hover' },
+  { key: 'partial_low', label: 'Close (under)', bar: 'bg-accent' },
+  { key: 'full', label: 'Spot on', bar: 'bg-success' },
+  { key: 'partial_high', label: 'Close (over)', bar: 'bg-accent' },
+  { key: 'zero_high', label: 'Way over', bar: 'bg-surface-hover' },
 ] as const;
 
 export function NumericBuckets({ reveal, distribution, size = 'large' }: {
@@ -28,9 +28,9 @@ export function NumericBuckets({ reveal, distribution, size = 'large' }: {
 
   return (
     <div className={`w-full ${large ? 'max-w-3xl space-y-4' : 'space-y-2'}`}>
-      <p className={`text-center ${large ? 'text-slate-300 text-2xl' : 'text-slate-400 text-sm'}`}>
+      <p className={`text-center ${large ? 'text-fg-muted text-2xl' : 'text-fg-subtle text-lg'}`}>
         Answer:{' '}
-        <span className={`font-black text-green-400 ${large ? 'text-5xl' : 'text-base'}`}>
+        <span className={`font-black text-success-fg ${large ? 'text-5xl' : 'text-lg'}`}>
           {withUnit(reveal.answer, reveal.unit)}
         </span>
       </p>
@@ -38,7 +38,7 @@ export function NumericBuckets({ reveal, distribution, size = 'large' }: {
       <div className="flex items-end gap-3" style={{ height: chartHeight }}>
         {BUCKETS.map((b, i) => (
           <div key={b.key} className="flex-1 flex flex-col items-center justify-end h-full">
-            <span className={`font-bold text-slate-100 ${large ? 'text-2xl' : 'text-xs'}`}>
+            <span className={`font-bold text-fg ${large ? 'text-2xl' : 'text-lg'}`}>
               {counts[i]}
             </span>
             <div
@@ -52,14 +52,14 @@ export function NumericBuckets({ reveal, distribution, size = 'large' }: {
         {BUCKETS.map(b => (
           <span
             key={b.key}
-            className={`flex-1 text-center text-slate-300 ${large ? 'text-lg' : 'text-[10px] leading-tight'}`}
+            className={`flex-1 text-center text-fg-muted ${large ? 'text-lg' : 'text-lg leading-tight'}`}
           >
             {b.label}
           </span>
         ))}
       </div>
 
-      <p className={`text-center text-slate-400 ${large ? 'text-lg' : 'text-xs'}`}>
+      <p className={`text-center text-fg-subtle ${large ? 'text-lg' : 'text-lg'}`}>
         {total === 0
           ? 'No answers'
           : `${distribution.full ?? 0} of ${total} within full credit`}

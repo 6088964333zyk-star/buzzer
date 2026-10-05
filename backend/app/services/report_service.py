@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.course import Course
 from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
-from . import map_pin, numeric
+from . import image_refs, map_pin, numeric
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +70,20 @@ def _answer_reveal(q: Question) -> dict:
             "acceptedAnswers": q.answer_data.get("acceptedAnswers", []),
             "editDistance": q.answer_data.get("editDistance", 0),
         }
+    if q.type == "multi_select":
+        return {
+            "type": "multi_select",
+            "answerPoints": q.answer_data.get("answer_points", []),
+        }
     return {}
+
+
+def _multi_select_keys(answer_data: dict | None) -> list[str]:
+    """One distribution key per ticked option, as game_service.record_answer counts them."""
+    indices = (answer_data or {}).get("selectedIndices")
+    if not isinstance(indices, list):
+        return []
+    return [str(i) for i in indices if isinstance(i, int) and not isinstance(i, bool)]
 
 
 def _extract_answer_key(
@@ -142,8 +155,10 @@ def _render_map_summary(q: Question, scores: list) -> str:
     ]
     if not map_pin.is_unit_point(target):
         return ""
+    on_image = image_refs.map_image_id(q.type, q.config) is not None
     parts = [
-        f"Target ({target['x'] * 100:.1f}%, {target['y'] * 100:.1f}%)",
+        f"Target ({target['x'] * 100:.1f}%, {target['y'] * 100:.1f}%)"
+        + (" on a custom image" if on_image else ""),
         f"{len(points)} guess{'es' if len(points) != 1 else ''}",
     ]
     if points:
@@ -208,11 +223,18 @@ def _render_bar_chart(
     q: Question, dist: dict[str, int], reveal: dict, total_players: int
 ) -> str:
     options = q.config.get("options", [])
+    option_images = q.config.get("optionImages")
+    if not isinstance(option_images, list):
+        option_images = []
+
+    def has_image(i: int) -> bool:  # T8: a text marker, no embedded image
+        return i < len(option_images) and option_images[i] is not None
 
     if q.type == "multiple_choice":
         bars = [
             {
-                "label": f"{_OPTION_LETTERS[i]} {_esc(opt)}",
+                "label": f"{_OPTION_LETTERS[i]} {_esc(opt)}"
+                + (" (image)" if has_image(i) else ""),
                 "count": dist.get(str(i), 0),
                 "correct": (i in reveal.get("correctIndices", []))
                 if reveal.get("type") == "multiple_choice"
@@ -225,6 +247,20 @@ def _render_bar_chart(
         bars = [
             {"label": "True", "count": dist.get("true", 0), "correct": cv is True},
             {"label": "False", "count": dist.get("false", 0), "correct": cv is False},
+        ]
+    elif q.type == "multi_select":
+        # Counts are ticks per option (a player can tick several). Options worth
+        # points are marked correct, as on the host results screen.
+        pts = (
+            reveal.get("answerPoints") if reveal.get("type") == "multi_select" else None
+        )
+        bars = [
+            {
+                "label": f"{_OPTION_LETTERS[i]}\u2002{_esc(opt)}",
+                "count": dist.get(str(i), 0),
+                "correct": (i < len(pts) and pts[i] > 0) if pts is not None else None,
+            }
+            for i, opt in enumerate(options)
         ]
     else:
         bars = []
@@ -500,6 +536,10 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
 
         dist: dict[str, int] = defaultdict(int)
         for s in q_scores:
+            if q.type == "multi_select":
+                for key in _multi_select_keys(s.answer_data):
+                    dist[key] += 1
+                continue
             key = _extract_answer_key(q.type, s.answer_data, q.answer_data)
             if key is not None:
                 dist[key] += 1
@@ -510,6 +550,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
         type_badge = {
             "multiple_choice": ("Multiple Choice", "badge-mc"),
             "true_false": ("True / False", "badge-tf"),
+            "multi_select": ("Multi-Select", "badge-mc"),
             "fill_in_the_blank": ("Fill in the Blank", "badge-fitb"),
             "map_pin": ("Map Pin", "badge-fitb"),
             "numeric": ("Numeric", "badge-fitb"),
@@ -522,7 +563,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
         pts_val = f"{q.points_value:g}"
         pts_label = f"{pts_val} pt{'s' if q.points_value != 1 else ''}"
 
-        if q.type in ("multiple_choice", "true_false"):
+        if q.type in ("multiple_choice", "true_false", "multi_select"):
             chart = _render_bar_chart(q, dict(dist), reveal, total_players)
         elif q.type == "fill_in_the_blank":
             chart = _render_word_cloud(q, dict(dist), reveal)
@@ -553,7 +594,8 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
             f'<span class="badge {grading_class}">{_esc(grading_label)}</span>'
             f'<span class="q-timing">{q.time_limit_seconds}s · {_esc(pts_label)}</span>'
             f"</div>"
-            f'<p class="prompt">{q.prompt}</p>'
+            f'<p class="prompt">{q.prompt}'
+            f"{' (image)' if (q.config or {}).get('imageId') else ''}</p>"
             f"{chart}"
             f"{stats}"
             f"</div>"

@@ -1,0 +1,165 @@
+{
+  "format": "buzzer/game",
+  "version": 1,
+  "game": {
+    "title": "Intro Statistics: Check Your Intuition",
+    "description": "A classroom review of core introductory statistics — center and spread, study design, the normal model, and hypothesis testing — plus a few reflection questions about where you are in the course.",
+    "max_players": 150
+  },
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "A dataset of household incomes has a few extremely high values. Which measure of center is most resistant to those outliers?",
+      "config": {
+        "options": ["Mean", "Median", "Midrange (average of min and max)", "Sum of all values"]
+      },
+      "answer_data": { "answer_points": [0.0, 1.0, 0.0, 0.0] },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of the following are measures of spread (variability)? Select all that apply.",
+      "config": {
+        "options": ["Standard deviation", "Interquartile range (IQR)", "Median", "Range", "Mode"]
+      },
+      "answer_data": { "answer_points": [1.0, 1.0, -1.0, 1.0, -1.0] },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "A correlation coefficient of r = 0 means there is no relationship of any kind between the two variables.",
+      "config": {},
+      "answer_data": { "answer_points": { "true": 0.0, "false": 1.0 } },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Researchers randomly assign 200 volunteers to either a new study app or no app, then compare exam scores. What kind of study is this?",
+      "config": {
+        "options": ["Observational study", "Randomized experiment", "Sample survey", "Census"]
+      },
+      "answer_data": { "answer_points": [0.0, 1.0, 0.0, 0.0] },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "By the 68–95–99.7 rule, about what percent of a normal distribution lies within 2 standard deviations of the mean? (number only)",
+      "config": { "maxLength": 5 },
+      "answer_data": { "acceptedAnswers": ["95", "95%"], "answerPoints": [1.0, 1.0], "editDistance": 0 },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of these variables are categorical? Select all that apply.",
+      "config": {
+        "options": ["Blood type", "Height in centimeters", "Eye color", "Number of siblings", "Favorite music genre"]
+      },
+      "answer_data": { "answer_points": [1.0, -1.0, 1.0, -1.0, 1.0] },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "All else being equal, increasing the sample size makes a confidence interval for the mean narrower.",
+      "config": {},
+      "answer_data": { "answer_points": { "true": 1.0, "false": 0.0 } },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "The ______ Limit Theorem says the sampling distribution of the sample mean is approximately normal when the sample size is large.",
+      "config": { "maxLength": 30 },
+      "answer_data": { "acceptedAnswers": ["Central", "Central Limit Theorem"], "answerPoints": [1.0, 1.0], "editDistance": 1 },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "What is a p-value?",
+      "config": {
+        "options": [
+          "The probability that the null hypothesis is true",
+          "The probability of data at least as extreme as what we observed, assuming the null hypothesis is true",
+          "The probability that the alternative hypothesis is true",
+          "The probability of making a Type II error"
+        ]
+      },
+      "answer_data": { "answer_points": [0.0, 1.0, 0.0, 0.0] },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "For a 95% two-sided confidence interval using the normal distribution, what is the critical value z*?",
+      "config": {},
+      "answer_data": { "answer": 1.96, "toleranceMode": "absolute", "fullTolerance": 0.01, "zeroTolerance": 0.5 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "In a normal distribution, roughly what percentage of values lie within one standard deviation of the mean?",
+      "config": { "unit": "%" },
+      "answer_data": { "answer": 68.27, "toleranceMode": "absolute", "fullTolerance": 1, "zeroTolerance": 15 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Which topic so far feels the hardest to you?",
+      "config": {
+        "options": ["Probability rules", "Sampling distributions", "Confidence intervals", "Hypothesis testing"]
+      },
+      "answer_data": {},
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "COMPLETENESS",
+      "prompt": "I have used R, Python, or another programming language to analyze data before.",
+      "config": {},
+      "answer_data": {},
+      "time_limit_seconds": 15,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Which of these tools have you used for statistics? Select all that apply.",
+      "config": {
+        "options": ["Excel or Google Sheets", "R / RStudio", "Python (pandas, NumPy)", "A graphing calculator", "None of these yet"]
+      },
+      "answer_data": {},
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "COMPLETENESS",
+      "prompt": "In a few words: what is one statistics question you still have after this unit?",
+      "config": { "maxLength": 120 },
+      "answer_data": {},
+      "time_limit_seconds": 45,
+      "points_value": 1.0
+    }
+  ]
+}

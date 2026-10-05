@@ -42,17 +42,17 @@ export default function SessionsPage() {
   return (
     <div className="min-h-screen p-8 max-w-4xl mx-auto space-y-6">
       <ManageNav courseId={courseId} />
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-      {loading && <p className="text-slate-400">Loading…</p>}
-      {!loading && sessions.length === 0 && <p className="text-slate-400">No sessions yet.</p>}
+      {error && <p className="text-danger-fg text-sm">{error}</p>}
+      {loading && <p className="text-fg-subtle">Loading…</p>}
+      {!loading && sessions.length === 0 && <p className="text-fg-subtle">No sessions yet.</p>}
 
       <div className="space-y-3">
         {sessions.map((s) => (
           <Card key={s.session_id}>
             <CardContent className="flex items-center justify-between gap-4 py-4">
               <div className="min-w-0">
-                <p className="font-semibold text-slate-100">{s.game_title}</p>
-                <p className="text-slate-400 text-sm">
+                <p className="font-semibold text-fg">{s.game_title}</p>
+                <p className="text-fg-subtle text-sm">
                   {new Date(s.completed_at ?? s.created_at).toLocaleString()} · room {s.room_code} ·{' '}
                   {s.status.toLowerCase()} · {s.player_count} player{s.player_count === 1 ? '' : 's'}
                 </p>
