@@ -40,10 +40,22 @@ exports/reports. Routers stay thin and call into here.
   `score_numeric` (linear falloff, epsilon at the boundaries, 2-decimal rounding), `bucket`
   (`zero_low`/`partial_low`/`full`/`partial_high`/`zero_high` distribution keys), `reveal`,
   and `format_number`/`with_unit` for the HTML report.
+- `image_refs.py` — pure helpers for the T8 image keys in a question's `config`:
+  `shape_error` (used by the schema validator), `referenced_ids`, `map_image_id`.
+- `image_service.py` — T8 images (`docs/design-t8-images.md`): `inspect` (Pillow: PNG/JPEG/GIF/
+  WebP only, ≤ 2 MB, ≤ 25 MP, mime from the bytes, EXIF-rotated size; one fixed 422 message per
+  failure), `read_upload`, `etag_matches`, list/create/replace/delete with the D5 rules (409
+  during a live room; delete 409 while used; a `map_pin` map must keep its shape within 1% and
+  can't be replaced once that question has answers), `assert_refs_in_game` (422),
+  `fill_map_aspect` (server-set `aspectRatio`: the map image's, else 2.0), and the version-2
+  export/import helpers (`export_images`, `import_images`, `remap`).
 - `question_service.py` — question create/update/delete/reorder shared by `routers/admin.py`
   and `routers/host.py`. Update merges onto the stored row and re-validates with
   `QuestionCreate` (422). Deleting, or changing the `type` of, an answered question → 409.
-  All edits → 409 while the game has a session IN_PROGRESS whose Redis room key still exists.
+  All edits → 409 while the game has a session IN_PROGRESS whose Redis room key still exists
+  (`assert_no_live_session`, also used by `image_service`). T8: referenced images must belong
+  to the game (422), `map_pin` `aspectRatio` is filled from its map image, and an answered
+  `map_pin` can't change `mapImageId` (409).
 - `roster_service.py` — parses a Canvas gradebook CSV (`Student`, `SIS Login ID` columns) or
   JSON rows into `CourseRoster` upserts. More than `MAX_ROWS` (1000) data rows → 422 before
   any write.

@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import type { AnswerReveal } from '../../types/game';
 import { MapCanvas } from '../../components/MapCanvas';
 import { distributionDots } from '../../lib/mapPin';
+import { imageUrl } from '../../lib/images';
 
 const RESULTS_DISPLAY_SECONDS = 10;
 
@@ -115,7 +116,7 @@ function WordCloud({ distribution, answerReveal, totalAnswered, totalPlayers }: 
 // ---------------------------------------------------------------------------
 
 interface BarChartProps {
-  bars: { label: string; count: number; correct: boolean | null }[];
+  bars: { label: string; count: number; correct: boolean | null; image?: string | null }[];
   totalAnswered: number;
   totalPlayers: number;
 }
@@ -139,6 +140,9 @@ function AnswerBarChart({ bars, totalAnswered, totalPlayers }: BarChartProps) {
             <span className="text-slate-300 font-bold font-mono w-8 text-right shrink-0">
               {bar.label}
             </span>
+            {bar.image && (
+              <img src={imageUrl(bar.image)} alt="" className="h-10 w-10 object-cover rounded shrink-0" />
+            )}
             <div className="flex-1 bg-slate-800 rounded-full h-10 overflow-hidden">
               <div
                 className={`h-full rounded-full flex items-center justify-end pr-3 transition-all duration-500 ${barColor}`}
@@ -252,14 +256,20 @@ export default function ResultsPage() {
       ? questionResults.answerReveal
       : null;
 
+  const optionImages =
+    currentQuestion?.type === 'multiple_choice' || currentQuestion?.type === 'multi_select'
+      ? currentQuestion.config.optionImages
+      : undefined;
   const bars =
     !isFitb && questionResults
       ? buildBars(
           questionResults.answerReveal,
           questionResults.answerDistribution,
           currentQuestion?.config?.options,
-        )
+        ).map((bar, i) => ({ ...bar, image: optionImages?.[i] ?? null }))
       : [];
+  // T8 D4: thumbnails next to the bars; the text label stays.
+  // (Set only for MC / multi-select, so the index lines up with the options.)
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 gap-8">
@@ -267,6 +277,13 @@ export default function ResultsPage() {
         Question {currentQuestion?.questionNumber} Results
       </h2>
 
+      {currentQuestion?.config.imageId && (
+        <img
+          src={imageUrl(currentQuestion.config.imageId)}
+          alt=""
+          className="max-h-[30vh] max-w-full object-contain rounded-xl"
+        />
+      )}
       {currentQuestion && (
         <p className="text-slate-300 text-xl text-center max-w-2xl">
           {currentQuestion.prompt}
@@ -277,6 +294,7 @@ export default function ResultsPage() {
         <div className="w-full max-w-4xl space-y-2">
           <MapCanvas
             aspectRatio={mapReveal.aspectRatio}
+            imageUrl={currentQuestion?.config.mapImageId ? imageUrl(currentQuestion.config.mapImageId) : null}
             target={mapReveal.target}
             fullRadius={mapReveal.fullRadius}
             zeroRadius={mapReveal.zeroRadius}

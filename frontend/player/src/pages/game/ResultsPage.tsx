@@ -1,12 +1,15 @@
 import { useGame } from './GameLayout';
 import { MapCanvas } from '../../components/MapCanvas';
+import { imageUrl } from '../../lib/images';
 import { formatPct, mapDistance, type MapPoint } from '../../lib/mapPin';
 import { describeOffBy, isFullCredit, withUnit } from '../../lib/numeric';
 import type { MapPinReveal, NumericReveal } from '../../types/game';
 
 /** map_pin results: distance + points, no Correct/Incorrect (design Goldfish F). */
-function MapPinResult({ reveal, point, points, completeness }: {
+function MapPinResult({ reveal, point, points, completeness, mapImageId }: {
   reveal: MapPinReveal; point: MapPoint | null; points: number; completeness: boolean;
+  /** T8 D7: custom map image, if the question has one. */
+  mapImageId?: string | null;
 }) {
   const d = point ? mapDistance(point, reveal.target, reveal.aspectRatio) : null;
   return (
@@ -22,6 +25,7 @@ function MapPinResult({ reveal, point, points, completeness }: {
       )}
       <MapCanvas
         aspectRatio={reveal.aspectRatio}
+        imageUrl={mapImageId ? imageUrl(mapImageId) : null}
         point={point}
         target={reveal.target}
         fullRadius={reveal.fullRadius}
@@ -101,6 +105,7 @@ export default function ResultsPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 gap-5 text-center">
         <MapPinResult
+          mapImageId={currentQuestion?.config.mapImageId}
           reveal={answerReveal}
           point={p ?? null}
           points={yourPoints}

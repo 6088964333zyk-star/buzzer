@@ -6,6 +6,9 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { MapPicker } from '../components/MapPicker';
+import { ImageLibrary } from '../components/ImageLibrary';
+import { ImagePicker } from '../components/ImagePicker';
+import { imageUrl, type GameImage } from '../lib/images';
 import type { MapPoint } from '../lib/mapPin';
 import { formatNumber, parseNumber, withUnit } from '../lib/numeric';
 
@@ -28,11 +31,18 @@ interface Game { id: number; title: string }
 
 // ---- helpers for building config/answer_data per type ----
 
-interface McOption { text: string; points: number }
+// T8 D4: an option may have an image; its text stays required.
+interface McOption { text: string; points: number; image?: string | null }
+
+/** config.optionImages, or nothing when no option has an image (Goldfish 1). */
+function optionImagesConfig(options: McOption[]): { optionImages?: (string | null)[] } {
+  const ids = options.map((o) => o.image ?? null);
+  return ids.some((id) => id !== null) ? { optionImages: ids } : {};
+}
 
 function buildMcPayload(options: McOption[], _grading: GradingType) {
   return {
-    config: { options: options.map((o) => o.text) },
+    config: { options: options.map((o) => o.text), ...optionImagesConfig(options) },
     answer_data: { answer_points: options.map((o) => o.points) },
   };
 }
@@ -46,7 +56,7 @@ function buildTfPayload(truePoints: number, falsePoints: number) {
 
 function buildMsPayload(options: McOption[]) {
   return {
-    config: { options: options.map((o) => o.text) },
+    config: { options: options.map((o) => o.text), ...optionImagesConfig(options) },
     answer_data: { answer_points: options.map((o) => o.points) },
   };
 }
@@ -72,6 +82,9 @@ interface FormState {
   prompt: string;
   timeLimitSeconds: number;
   pointsValue: number;
+  // T8 (docs/design-t8-images.md): config.imageId / config.mapImageId
+  promptImage: string | null;
+  mapImage: string | null;
   // multiple_choice
   mcOptions: McOption[];
   // true_false
@@ -100,6 +113,8 @@ const defaultForm = (): FormState => ({
   prompt: '',
   timeLimitSeconds: 30,
   pointsValue: 1,
+  promptImage: null,
+  mapImage: null,
   mcOptions: [{ text: '', points: 1 }, { text: '', points: 0 }],
   tfTruePoints: 1,
   tfFalsePoints: 0,
@@ -125,11 +140,14 @@ function questionToForm(q: Question): FormState {
     prompt: q.prompt,
     timeLimitSeconds: q.time_limit_seconds,
     pointsValue: q.points_value,
+    promptImage: typeof q.config['imageId'] === 'string' ? q.config['imageId'] : null,
+    mapImage: typeof q.config['mapImageId'] === 'string' ? q.config['mapImageId'] : null,
   };
+  const optionImages = (q.config['optionImages'] as (string | null)[] | undefined) ?? [];
   if (q.type === 'multiple_choice') {
     const opts = (q.config['options'] as string[]) ?? [];
     const pts = (q.answer_data['answer_points'] as number[]) ?? [];
-    base.mcOptions = opts.map((text, i) => ({ text, points: pts[i] ?? 0 }));
+    base.mcOptions = opts.map((text, i) => ({ text, points: pts[i] ?? 0, image: optionImages[i] ?? null }));
   } else if (q.type === 'true_false') {
     const ap = q.answer_data['answer_points'] as { true: number; false: number } | undefined;
     base.tfTruePoints = ap?.true ?? 1;
@@ -145,7 +163,7 @@ function questionToForm(q: Question): FormState {
     const opts = (q.config['options'] as string[]) ?? [];
     const pts = (q.answer_data['answer_points'] as number[]) ?? [];
     base.msOptions = opts.length
-      ? opts.map((text, i) => ({ text, points: pts[i] ?? 1 }))
+      ? opts.map((text, i) => ({ text, points: pts[i] ?? 1, image: optionImages[i] ?? null }))
       : [{ text: '', points: 1 }, { text: '', points: 1 }];
   } else if (q.type === 'map_pin') {
     base.mapTarget = (q.answer_data['target'] as MapPoint | undefined) ?? null;
@@ -163,7 +181,7 @@ function questionToForm(q: Question): FormState {
   return base;
 }
 
-function formToPayload(form: FormState) {
+function formToPayload(form: FormState, images: GameImage[] = []) {
   let config: Record<string, unknown> = {};
   let answer_data: Record<string, unknown> = {};
   if (form.type === 'multiple_choice') {
@@ -198,7 +216,10 @@ function formToPayload(form: FormState) {
     // Target is required for both grading types (Goldfish B); aspectRatio is
     // always written so config is the single source of truth (Goldfish I).
     if (!form.mapTarget) throw new Error('Click the map to set the correct location.');
-    config = { aspectRatio: 2 };
+    // The server sets the real aspectRatio from the map image (T8 D7); send our best guess.
+    config = form.mapImage
+      ? { aspectRatio: mapAspect(form.mapImage, images), mapImageId: form.mapImage }
+      : { aspectRatio: 2 };
     answer_data = {
       target: form.mapTarget,
       fullRadius: form.mapFullRadius,
@@ -220,6 +241,8 @@ function formToPayload(form: FormState) {
       : form.type === 'multi_select'
       ? form.msOptions.reduce((sum, o) => sum + (o.points > 0 ? o.points : 0), 0)
       : Math.max(0, ...form.fibAnswers.map((a) => a.points));
+  // The whole config is replaced on update, so leaving imageId out removes it (T8 Goldfish 1).
+  if (form.promptImage) config = { ...config, imageId: form.promptImage };
   return {
     type: form.type,
     grading_type: form.grading,
@@ -229,6 +252,39 @@ function formToPayload(form: FormState) {
     time_limit_seconds: form.timeLimitSeconds,
     points_value,
   };
+}
+
+// ---- images (docs/design-t8-images.md) ----
+
+/** width/height of a library image, or the built-in world map's 2. */
+function mapAspect(id: string | null, images: GameImage[]): number {
+  const img = id ? images.find((i) => i.id === id) : undefined;
+  return img ? img.width / img.height : 2;
+}
+
+function libraryUrl(id: string, images: GameImage[]): string {
+  return imageUrl(id, images.find((i) => i.id === id)?.sha256);
+}
+
+/** Per-option image picker for the MC / multi-select rows. */
+function OptionImage({ options, i, images, onChange }: {
+  options: McOption[];
+  i: number;
+  images: GameImage[];
+  onChange: (opts: McOption[]) => void;
+}) {
+  return (
+    <ImagePicker
+      images={images}
+      value={options[i].image ?? null}
+      label="Img"
+      onChange={(id) => {
+        const opts = [...options];
+        opts[i] = { ...opts[i], image: id };
+        onChange(opts);
+      }}
+    />
+  );
 }
 
 // ---- numeric (docs/design-t7-numeric.md N8) ----
@@ -323,11 +379,13 @@ function NumericFields({ form, set }: {
 
 function QuestionForm({
   initial,
+  images,
   onSave,
   onCancel,
   saving,
 }: {
   initial: FormState;
+  images: GameImage[];
   onSave: (payload: ReturnType<typeof formToPayload>) => void;
   onCancel: () => void;
   saving: boolean;
@@ -381,6 +439,10 @@ function QuestionForm({
           onChange={(e) => set('prompt', e.target.value)}
           required
         />
+        <div className="mt-2 flex items-center gap-2">
+          <ImagePicker images={images} value={form.promptImage} onChange={(id) => set('promptImage', id)} label="Prompt image" />
+          <span className="text-xs text-slate-500">Shown with the prompt on the big screen only.</span>
+        </div>
       </div>
 
       {/* Type-specific */}
@@ -407,6 +469,7 @@ function QuestionForm({
                   }}
                   className="flex-1 text-sm"
                 />
+                <OptionImage options={form.mcOptions} i={i} images={images} onChange={(o) => set('mcOptions', o)} />
                 {form.grading === 'ACCURACY' && (
                   <Input
                     type="number"
@@ -438,7 +501,7 @@ function QuestionForm({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => set('mcOptions', [...form.mcOptions, { text: '', points: 0 }])}
+              onClick={() => set('mcOptions', [...form.mcOptions, { text: '', points: 0, image: null }])}
             >
               <Plus size={12} className="mr-1" /> Add option
             </Button>
@@ -469,6 +532,7 @@ function QuestionForm({
                   }}
                   className="flex-1 text-sm"
                 />
+                <OptionImage options={form.msOptions} i={i} images={images} onChange={(o) => set('msOptions', o)} />
                 {form.grading === 'ACCURACY' && (
                   <Input
                     type="number"
@@ -499,7 +563,7 @@ function QuestionForm({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => set('msOptions', [...form.msOptions, { text: '', points: 1 }])}
+              onClick={() => set('msOptions', [...form.msOptions, { text: '', points: 1, image: null }])}
             >
               <Plus size={12} className="mr-1" /> Add option
             </Button>
@@ -517,7 +581,18 @@ function QuestionForm({
       )}
 
       {form.type === 'map_pin' && (
+        <div className="flex items-center gap-2">
+          <ImagePicker images={images} value={form.mapImage} onChange={(id) => set('mapImage', id)} label="Map image" />
+          <span className="text-xs text-slate-500">
+            {form.mapImage ? 'Players tap on this image.' : 'Built-in world map. Pick an image to use your own.'}
+          </span>
+        </div>
+      )}
+
+      {form.type === 'map_pin' && (
         <MapPicker
+          imageUrl={form.mapImage ? libraryUrl(form.mapImage, images) : null}
+          aspectRatio={mapAspect(form.mapImage, images)}
           value={{ target: form.mapTarget, fullRadius: form.mapFullRadius, zeroRadius: form.mapZeroRadius }}
           onChange={(v) => setForm((prev) => ({
             ...prev, mapTarget: v.target, mapFullRadius: v.fullRadius, mapZeroRadius: v.zeroRadius,
@@ -655,11 +730,28 @@ function QuestionForm({
       </div>
 
       <div className="flex gap-3">
-        <Button type="button" onClick={() => onSave(formToPayload(form))} disabled={saving}>
+        <Button type="button" onClick={() => onSave(formToPayload(form, images))} disabled={saving}>
           {saving ? 'Saving\u2026' : 'Save Question'}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
+    </div>
+  );
+}
+
+/** Thumbnails of the images a question uses, in the list view (T8). */
+function QuestionImages({ q, images }: { q: Question; images: GameImage[] }) {
+  const ids = [
+    q.config['imageId'],
+    ...(((q.config['optionImages'] as (string | null)[] | undefined) ?? [])),
+    q.config['mapImageId'],
+  ].filter((id): id is string => typeof id === 'string');
+  if (ids.length === 0) return null;
+  return (
+    <div className="mt-2 flex gap-1 flex-wrap">
+      {ids.map((id, k) => (
+        <img key={`${id}-${k}`} src={libraryUrl(id, images)} alt="" className="h-10 w-10 object-cover rounded border border-slate-700" />
+      ))}
     </div>
   );
 }
@@ -671,6 +763,7 @@ export default function QuestionEditorPage() {
   const navigate = useNavigate();
   const [game, setGame] = useState<Game | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [images, setImages] = useState<GameImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -680,12 +773,14 @@ export default function QuestionEditorPage() {
 
   async function load() {
     try {
-      const [g, qs] = await Promise.all([
+      const [g, qs, imgs] = await Promise.all([
         api.get<Game>(`/admin/games/${gameId}`),
         api.get<Question[]>(`/admin/games/${gameId}/questions`),
+        api.get<GameImage[]>(`/admin/games/${gameId}/images`),
       ]);
       setGame(g);
       setQuestions(qs);
+      setImages(imgs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -727,7 +822,7 @@ export default function QuestionEditorPage() {
     if (!confirm('Delete this question?')) return;
     try {
       await api.delete(`/admin/games/${gameId}/questions/${id}`);
-      setQuestions((prev) => prev.filter((q) => q.id !== id));
+      await load(); // refresh the images' "used by" too
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete question');
     }
@@ -802,6 +897,9 @@ export default function QuestionEditorPage() {
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
+      {/* Image library (T8, docs/design-t8-images.md D5) */}
+      {gameId && <ImageLibrary prefix="/admin" gameId={gameId} images={images} onChanged={load} />}
+
       {/* Add question form */}
       {showAddForm && (
         <Card>
@@ -809,6 +907,7 @@ export default function QuestionEditorPage() {
           <CardContent>
             <QuestionForm
               initial={defaultForm()}
+              images={images}
               onSave={(payload) => void addQuestion(payload)}
               onCancel={() => setShowAddForm(false)}
               saving={saving}
@@ -833,6 +932,7 @@ export default function QuestionEditorPage() {
                 <CardContent>
                   <QuestionForm
                     initial={questionToForm(q)}
+                    images={images}
                     onSave={(payload) => void updateQuestion(q.id, payload)}
                     onCancel={() => setEditingId(null)}
                     saving={saving}
@@ -871,6 +971,7 @@ export default function QuestionEditorPage() {
                     <span className="text-slate-500 text-xs">{q.time_limit_seconds}s \u00b7 {q.points_value}pts</span>
                   </div>
                   <p className="text-slate-100 text-sm leading-relaxed">{q.prompt}</p>
+                  <QuestionImages q={q} images={images} />
 
                   {q.type === 'multiple_choice' && (
                     <div className="mt-2 space-y-1">

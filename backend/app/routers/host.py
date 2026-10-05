@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,7 @@ from ..models.user import User
 from ..redis_client import get_redis
 from ..schemas.admin import (
     GameResponse,
+    ImageResponse,
     QuestionCreate,
     QuestionReorder,
     QuestionResponse,
@@ -39,7 +40,7 @@ from ..schemas.game import (
     HostRosterActivePatch,
     HostSessionItem,
 )
-from ..services import question_service
+from ..services import image_service, question_service
 from ..services.export_service import build_session_csv
 from ..services.game_service import (
     assert_host_can_manage_game,
@@ -172,6 +173,52 @@ async def reorder_questions(
 ) -> None:
     game = await assert_host_can_manage_game(db, user, game_id)
     await question_service.reorder(db, redis, game, body.order)
+
+
+# ---------------------------------------------------------------------------
+# Images (T8, docs/design-t8-images.md) — authorized by the image's game
+# ---------------------------------------------------------------------------
+
+
+@router.get("/games/{game_id}/images", response_model=list[ImageResponse])
+async def list_images(game_id: int, user: HostUser, db: DB) -> list[dict]:
+    await assert_host_can_manage_game(db, user, game_id)
+    return await image_service.list_for_game(db, game_id)
+
+
+@router.post("/games/{game_id}/images", response_model=ImageResponse, status_code=201)
+async def upload_image(
+    game_id: int,
+    user: HostUser,
+    db: DB,
+    file: Annotated[UploadFile, File(description="PNG, JPEG, GIF or WebP")],
+) -> dict:
+    await assert_host_can_manage_game(db, user, game_id)
+    data = await image_service.read_upload(file)
+    return await image_service.create(db, game_id, file.filename, data)
+
+
+@router.put("/images/{image_id}", response_model=ImageResponse)
+async def replace_image(
+    image_id: str,
+    user: HostUser,
+    db: DB,
+    file: Annotated[UploadFile, File(description="PNG, JPEG, GIF or WebP")],
+    redis=Depends(get_redis),
+) -> dict:
+    img = await image_service.get(db, image_id)
+    await assert_host_can_manage_game(db, user, img.game_id)
+    data = await image_service.read_upload(file)
+    return await image_service.replace(db, redis, img, file.filename, data)
+
+
+@router.delete("/images/{image_id}", status_code=204)
+async def delete_image(
+    image_id: str, user: HostUser, db: DB, redis=Depends(get_redis)
+) -> None:
+    img = await image_service.get(db, image_id)
+    await assert_host_can_manage_game(db, user, img.game_id)
+    await image_service.delete(db, redis, img)
 
 
 # ---------------------------------------------------------------------------

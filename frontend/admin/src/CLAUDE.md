@@ -13,9 +13,10 @@ guests, games and questions, and past sessions.
 - `index.css` — Tailwind directives and a hardcoded dark body background/text.
 - `pages/` — One self-contained page per screen, including the ~790-line `QuestionEditorPage`
   and the client-side CSV mapping wizard in `RosterPage`. See `pages/CLAUDE.md`.
-- `components/` — `ui/` primitives: `Button`, `Card`, `Input`. See `components/CLAUDE.md`.
-- `lib/` — The fullest `api.ts` of the three apps (`put`, `patch`, `postForm`, `download`), the
-  JWT claim reader `auth.ts`, and `cn`. See `lib/CLAUDE.md`.
+- `components/` — `ui/` primitives (`Button`, `Card`, `Input`) plus the editor's `MapCanvas`/`MapPicker`
+  (T7) and `ImageLibrary`/`ImagePicker` (T8). See `components/CLAUDE.md`.
+- `lib/` — `api.ts` (`put`, `patch`, `postForm`, `putForm`, `download`), the JWT claim reader
+  `auth.ts`, `images.ts` (T8), `mapPin.ts`, `numeric.ts` and `cn`. See `lib/CLAUDE.md`.
 
 ## How it fits in
 One of three separate frontends sharing no code. Built with `base: '/admin/'` and served by nginx

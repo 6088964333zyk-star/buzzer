@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..common.dependencies import require_admin
-from ..common.exceptions import ConflictError, NotFoundError
+from ..common.exceptions import ConflictError, NotFoundError, UnprocessableError
 from ..database import get_db
 from ..models.course import Course, CourseRoster, UserCourseAccess
 from ..models.game import Game, Question, UserGameAccess
@@ -30,6 +30,7 @@ from ..schemas.admin import (
     GameCreate,
     GameResponse,
     GameUpdate,
+    ImageResponse,
     QuestionCreate,
     QuestionReorder,
     QuestionResponse,
@@ -44,13 +45,14 @@ from ..schemas.admin import (
     UserWithAccessResponse,
 )
 from ..redis_client import get_redis
-from ..services import question_service
+from ..services import image_service, question_service
 from ..services.auth_service import hash_password
 from ..services.export_service import build_canvas_csv, build_session_csv
 from ..services.report_service import build_session_report
 from ..services.roster_service import process_roster_csv, process_roster_rows
 
-_SUPPORTED_IMPORT_VERSION = 1
+# Version 2 adds embedded images (docs/design-t8-images.md D6); 1 still imports.
+_SUPPORTED_IMPORT_VERSIONS = (1, 2)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = structlog.get_logger()
@@ -433,10 +435,11 @@ async def export_game(
         .order_by(Question.order_index)
     )
     questions = result.scalars().all()
+    images, id_to_ref = await image_service.export_images(db, game_id)
 
     bundle = {
         "format": "buzzer/game",
-        "version": _SUPPORTED_IMPORT_VERSION,
+        "version": 2 if images else 1,
         "game": {
             "title": game.title,
             "description": game.description,
@@ -447,7 +450,9 @@ async def export_game(
                 "type": q.type,
                 "grading_type": q.grading_type,
                 "prompt": q.prompt,
-                "config": q.config,
+                "config": image_service.remap(q.type, q.config or {}, id_to_ref)[0]
+                if images
+                else q.config,
                 "answer_data": q.answer_data,
                 "time_limit_seconds": q.time_limit_seconds,
                 "points_value": q.points_value,
@@ -455,6 +460,14 @@ async def export_game(
             for q in questions
         ],
     }
+    if images:
+        # After "questions" in the file would be just as valid; before keeps the
+        # refs defined above their first use for a human reader.
+        bundle = {
+            **{k: bundle[k] for k in ("format", "version", "game")},
+            "images": images,
+            "questions": bundle["questions"],
+        }
 
     safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in game.title)
     filename = f"{safe_title}.json"
@@ -481,10 +494,10 @@ async def import_game(
     if bundle.get("format") != "buzzer/game":
         raise HTTPException(status_code=422, detail="Unrecognised file format")
     version = bundle.get("version")
-    if version != _SUPPORTED_IMPORT_VERSION:
+    if version not in _SUPPORTED_IMPORT_VERSIONS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported version {version!r}; server supports version {_SUPPORTED_IMPORT_VERSION}",
+            detail=f"Unsupported version {version!r}; server supports versions 1 and 2",
         )
 
     game_data = bundle.get("game", {})
@@ -496,15 +509,11 @@ async def import_game(
         ) from exc
 
     questions_raw = bundle.get("questions", [])
-    validated_questions: list[QuestionCreate] = []
-    for i, q in enumerate(questions_raw):
-        try:
-            validated_questions.append(QuestionCreate(**q))
-        except Exception as exc:
-            raise HTTPException(
-                status_code=422, detail=f"Question {i + 1} invalid: {exc}"
-            ) from exc
+    if not isinstance(questions_raw, list):
+        raise HTTPException(status_code=422, detail="'questions' must be a list")
 
+    # Everything below runs in one transaction; get_db rolls back on any error,
+    # so a failed import leaves no game or images behind.
     game = Game(
         title=game_meta.title,
         description=game_meta.description,
@@ -512,6 +521,45 @@ async def import_game(
     )
     db.add(game)
     await db.flush()
+
+    ref_to_id: dict[str, str] = {}
+    if version == 2:
+        try:
+            ref_to_id = await image_service.import_images(
+                db, game.id, bundle.get("images", [])
+            )
+        except UnprocessableError as exc:
+            raise HTTPException(status_code=422, detail=exc.message) from exc
+
+    validated_questions: list[QuestionCreate] = []
+    for i, q in enumerate(questions_raw):
+        if version == 2 and isinstance(q, dict) and isinstance(q.get("config"), dict):
+            config, missing = image_service.remap(
+                str(q.get("type")), q["config"], ref_to_id
+            )
+            if missing:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Question {i + 1} uses unknown image ref {missing[0]}",
+                )
+            q = {**q, "config": config}
+        try:
+            question = QuestionCreate(**q)
+            await image_service.assert_refs_in_game(
+                db, game.id, question.type, question.config
+            )
+            question.config = await image_service.fill_map_aspect(
+                db, question.type, question.config
+            )
+        except UnprocessableError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"Question {i + 1} invalid: {exc.message}"
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422, detail=f"Question {i + 1} invalid: {exc}"
+            ) from exc
+        validated_questions.append(question)
 
     for idx, q in enumerate(validated_questions):
         clean_prompt = bleach.clean(
@@ -539,6 +587,57 @@ async def import_game(
         question_count=len(validated_questions),
     )
     return {"game_id": game.id}
+
+
+# ---------------------------------------------------------------------------
+# Images (T8, docs/design-t8-images.md)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/games/{game_id}/images", response_model=list[ImageResponse])
+async def list_images(
+    game_id: int,
+    _: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[dict]:
+    await _get_game(db, game_id)
+    return await image_service.list_for_game(db, game_id)
+
+
+@router.post("/games/{game_id}/images", response_model=ImageResponse, status_code=201)
+async def upload_image(
+    game_id: int,
+    file: Annotated[UploadFile, File(description="PNG, JPEG, GIF or WebP")],
+    _: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    await _get_game(db, game_id)
+    data = await image_service.read_upload(file)
+    return await image_service.create(db, game_id, file.filename, data)
+
+
+@router.put("/images/{image_id}", response_model=ImageResponse)
+async def replace_image(
+    image_id: str,
+    file: Annotated[UploadFile, File(description="PNG, JPEG, GIF or WebP")],
+    _: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis=Depends(get_redis),
+) -> dict:
+    img = await image_service.get(db, image_id)
+    data = await image_service.read_upload(file)
+    return await image_service.replace(db, redis, img, file.filename, data)
+
+
+@router.delete("/images/{image_id}", status_code=204)
+async def delete_image(
+    image_id: str,
+    _: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis=Depends(get_redis),
+) -> None:
+    img = await image_service.get(db, image_id)
+    await image_service.delete(db, redis, img)
 
 
 # ---------------------------------------------------------------------------
