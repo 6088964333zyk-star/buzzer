@@ -15,11 +15,13 @@ the Socket.io connection; four child pages render whichever phase the server say
   Start button (`host_advance`; disabled until at least one player joins).
 - `QuestionPage.tsx` — Question number/type/grading label, `TimerBar`, the prompt, answered
   count, Lock/Unlock (`host_lock_question`) and Show Results (`host_advance`). Auto-advances
-  1.5 s after `answer_phase_ended` when auto-advance is on.
+  1.5 s after `answer_phase_ended` when auto-advance is on. A prompt image (`config.imageId`,
+  T8) shows above the prompt and is hidden with it while locked.
 - `ResultsPage.tsx` — Per-question results: bar chart (MC, TF, multi-select, completeness) or
   word cloud (fill-in-the-blank, colored with a local Levenshtein against accepted answers).
   Next / Show Final Results button; 10 s countdown when auto-advance is on. `map_pin` (T7)
-  draws guesses on a map; `numeric` (T7) uses `components/NumericBuckets` instead of option
+  draws guesses on a map (a custom `config.mapImageId` image if set, T8); option bars get a
+  thumbnail when `config.optionImages` has one (T8); `numeric` (T7) uses `components/NumericBuckets` instead of option
   bars, and its game-over card does too.
 - `GameOverPage.tsx` — Anonymous score histogram (buckets from `maxPossibleScore`) and one
   summary card per question (distribution, correct %, average answer time). "New Game" button.
@@ -50,4 +52,5 @@ Entered from `../HomePage.tsx` after `POST /api/game/rooms`.
 - Join URL is built as `${origin}/player/join?code=…`, which only resolves behind nginx
   (`localhost:8080`), not under the Vite dev server ports.
 - Auto-advance state lives only in `GameLayout` memory; a page reload turns it off.
-- Colors are hardcoded Tailwind palette classes (`slate-*`, `indigo-*`, `green-*`, …) — T9 target.
+- Colors are T9 tokens only (see `../../CLAUDE.md`); both QR codes use `qr-bg`/`qr-fg`. Keep game-screen
+  text at `text-lg` or larger (the join panel's "Room Code" caption is the one exception).

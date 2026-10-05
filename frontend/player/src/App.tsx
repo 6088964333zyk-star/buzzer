@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import ThemeToggle from './components/ThemeToggle';
 import JoinPage from './pages/JoinPage';
 import LoginPage from './pages/LoginPage';
 import NamePage from './pages/NamePage';
@@ -12,6 +13,7 @@ import GameOverPage from './pages/game/GameOverPage';
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <ThemeToggle />
       <Routes>
         <Route path="/join" element={<JoinPage />} />
         <Route path="/login" element={<LoginPage />} />

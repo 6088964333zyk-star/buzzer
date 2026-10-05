@@ -1,0 +1,173 @@
+{
+  "format": "buzzer/game",
+  "version": 1,
+  "game": {
+    "title": "Football Fever: The Beautiful Game Quiz",
+    "description": "World Cups, legends, and the rules everyone argues about. A party quiz for die-hard fans and casual viewers alike — plus a few questions where every opinion counts.",
+    "max_players": 150
+  },
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Which country has won the most men's FIFA World Cup titles?",
+      "config": { "options": ["Germany", "Italy", "Brazil", "Argentina"] },
+      "answer_data": { "answer_points": [0.0, 0.0, 1.0, 0.0] },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "Which country hosted — and won — the very first FIFA World Cup in 1930?",
+      "config": { "maxLength": 20 },
+      "answer_data": { "acceptedAnswers": ["Uruguay"], "answerPoints": [1.0], "editDistance": 1 },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "A player cannot be penalized for offside when receiving the ball directly from a throw-in.",
+      "config": {},
+      "answer_data": { "answer_points": { "true": 1.0, "false": 0.0 } },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of these countries have won the men's FIFA World Cup at least once? Select all that apply.",
+      "config": { "options": ["Uruguay", "Netherlands", "England", "Portugal", "Spain"] },
+      "answer_data": { "answer_points": [1.0, -1.0, 1.0, -1.0, 1.0] },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Who holds the record for most goals scored at men's World Cup finals tournaments (16)?",
+      "config": { "options": ["Ronaldo (Brazil)", "Miroslav Klose", "Lionel Messi", "Pelé"] },
+      "answer_data": { "answer_points": [0.0, 1.0, 0.0, 0.0] },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "What do you call it when one player scores three goals in a single match?",
+      "config": { "maxLength": 20 },
+      "answer_data": { "acceptedAnswers": ["hat-trick", "hat trick", "hattrick"], "answerPoints": [1.0, 1.0, 1.0], "editDistance": 1 },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "Leicester City won the English Premier League in the 2015–16 season, after starting it as 5000-to-1 outsiders.",
+      "config": {},
+      "answer_data": { "answer_points": { "true": 1.0, "false": 0.0 } },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which countries co-hosted the 2026 men's FIFA World Cup? Select all that apply.",
+      "config": { "options": ["United States", "Brazil", "Canada", "Mexico", "Spain"] },
+      "answer_data": { "answer_points": [1.0, -1.0, 1.0, 1.0, -1.0] },
+      "time_limit_seconds": 25,
+      "points_value": 3.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Which club has won the most European Cup / UEFA Champions League titles?",
+      "config": { "options": ["AC Milan", "Bayern Munich", "Liverpool", "Real Madrid"] },
+      "answer_data": { "answer_points": [0.0, 0.0, 0.0, 1.0] },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is Barcelona's Camp Nou stadium?",
+      "config": { "aspectRatio": 2 },
+      "answer_data": { "target": { "x": 0.5059, "y": 0.2701 }, "fullRadius": 0.015, "zeroRadius": 0.1 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is the Maracanã, host of the 1950 and 2014 World Cup finals?",
+      "config": { "aspectRatio": 2 },
+      "answer_data": { "target": { "x": 0.3799, "y": 0.6273 }, "fullRadius": 0.02, "zeroRadius": 0.15 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "Guess the number: how many goals did Lionel Messi score in the 2012 calendar year (club and country)?",
+      "config": { "unit": "goals" },
+      "answer_data": { "answer": 91, "toleranceMode": "absolute", "fullTolerance": 3, "zeroTolerance": 30 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "Guess the year: when was FIFA founded?",
+      "config": {},
+      "answer_data": { "answer": 1904, "toleranceMode": "absolute", "fullTolerance": 0, "zeroTolerance": 30 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Which league would you most like to watch this weekend?",
+      "config": { "options": ["Premier League", "La Liga", "Serie A", "Bundesliga", "MLS"] },
+      "answer_data": {},
+      "time_limit_seconds": 15,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "COMPLETENESS",
+      "prompt": "I have played on an organized football (soccer) team at some point.",
+      "config": {},
+      "answer_data": {},
+      "time_limit_seconds": 15,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Settle the debate: who is the greatest footballer of all time?",
+      "config": { "maxLength": 40 },
+      "answer_data": {},
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "COMPLETENESS",
+      "prompt": "How do you usually follow football? Select all that apply.",
+      "config": { "options": ["Watching full matches on TV or streaming", "Highlights on social media", "Going to games in person", "Playing video games like EA FC", "I don't — I'm here for the snacks"] },
+      "answer_data": {},
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Take a guess and pin it: where will the 2026 World Cup final be played? Every pin scores!",
+      "config": { "aspectRatio": 2 },
+      "answer_data": { "target": { "x": 0.2942, "y": 0.2733 }, "fullRadius": 0.03, "zeroRadius": 0.2 },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    }
+  ]
+}

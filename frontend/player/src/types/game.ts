@@ -36,7 +36,7 @@ export interface QuestionPayload {
   type: QuestionType;
   prompt: string;
   gradingType?: 'ACCURACY' | 'COMPLETENESS';
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
+  config: QuestionConfig;
   timeLimitSeconds: number;
   pointsValue: number;
 }
@@ -72,7 +72,7 @@ export interface QuestionSummaryItem {
   prompt: string;
   type: QuestionType;
   gradingType: 'ACCURACY' | 'COMPLETENESS';
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
+  config: QuestionConfig;
   pointsAwarded: number;
   maxPoints: number;
   answerTimeMs: number | null;
@@ -95,3 +95,17 @@ export interface PlayerGameOverPayload {
 }
 
 export type PlayerPhase = 'lobby' | 'question' | 'feedback' | 'results' | 'gameover';
+
+/** Question config as sent to clients. T8 image keys: docs/design-t8-images.md. */
+export interface QuestionConfig {
+  options?: string[];
+  maxLength?: number;
+  aspectRatio?: number;
+  unit?: string;
+  /** Prompt image: shown on the big screen only, never on the phone (D3). */
+  imageId?: string | null;
+  /** One entry per option (MC / multi-select). */
+  optionImages?: (string | null)[];
+  /** map_pin background; absent = built-in world map. */
+  mapImageId?: string | null;
+}

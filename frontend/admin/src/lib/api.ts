@@ -64,6 +64,21 @@ async function downloadFetch(path: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** Multipart request: no JSON Content-Type, so the browser sets the boundary. */
+async function sendForm<T>(method: 'POST' | 'PUT', path: string, form: FormData): Promise<T> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    throw await toError(res);
+  }
+  const text = await res.text();
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -83,19 +98,8 @@ export const api = {
     }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
   /** POST multipart/form-data (for file uploads) */
-  postForm: <T>(path: string, form: FormData) => {
-    const token = localStorage.getItem('token');
-    return fetch(`${BASE}${path}`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    }).then(async (res) => {
-      if (!res.ok) {
-        throw await toError(res);
-      }
-      const text = await res.text();
-      return (text ? JSON.parse(text) : {}) as T;
-    });
-  },
+  postForm: <T>(path: string, form: FormData) => sendForm<T>('POST', path, form),
+  /** PUT multipart/form-data (replace an image, T8) */
+  putForm: <T>(path: string, form: FormData) => sendForm<T>('PUT', path, form),
   download: downloadFetch,
 };

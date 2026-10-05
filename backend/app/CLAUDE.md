@@ -17,19 +17,20 @@ state of rooms in progress.
   finishes, rolls back on error). SQL echo is on in development.
 - `redis_client.py` — shared async Redis client (`get_redis`).
 - `models/` — ORM tables: users, courses (+ roster, per-course HOST/PLAYER access), games
-  (+ questions, per-user game access), game sessions and per-answer scores.
+  (+ questions, per-user game access), per-game images (T8), game sessions and per-answer scores.
 - `schemas/` — Pydantic request/response shapes, including the only per-type validation of
   question `config`/`answer_data` (`QuestionCreate`).
 - `common/` — auth dependencies (`require_admin`, `require_user`), error types → JSON,
   structlog setup, rate limiter.
 - `routers/` — REST endpoints: `auth`, `game` (live-game host API), `host` (course-scoped
-  host management, T4), `admin` (admin-only CRUD, import/export, reports), `health`.
+  host management, T4), `admin` (admin-only CRUD, import/export, reports), `images` (public
+  image bytes, T8), `health`.
 - `services/` — business logic: tokens, course/game access checks, room lifecycle, scoring,
   Redis state, roster CSV parsing, CSV/HTML exports.
 - `websocket/` — Socket.IO gateway: join/rejoin, host-driven question state machine, answer
   submission, timers, host-disconnect handling.
 - `migrations/` — Alembic migrations (001 initial schema, 002 `answer_data` on scores,
-  003 float points, 004 `games.course_id` + backfill). Run `alembic` from `backend/`.
+  003 float points, 004 `games.course_id` + backfill, 005 `question_images`). Run `alembic` from `backend/`.
 
 ## How it fits in
 Request flow: router → (`schemas/` validation, `common/` auth) → `services/` → `models/`
@@ -49,20 +50,22 @@ call the REST API for setup and use Socket.IO for play.
   `docs/design-t7-map-question.md`, helpers in `services/map_pin.py`) and `numeric` (T7,
   numeric estimate with partial credit; `docs/design-t7-numeric.md`, `services/numeric.py`).
 - **Adding a question type (T7) touches many places**, because per-type answer logic is
-  copied rather than shared — and the copies have drifted (the HTML report already can't
-  render multi_select): the type regex twice and the validator in `schemas/admin.py`;
+  copied rather than shared — and the copies drift (the HTML report once had no
+  multi_select branch at all): the type regex twice and the validator in `schemas/admin.py`;
   `calculate_score`, `record_answer`'s distribution keys and both summaries in
   `services/game_service.py`; `_answer_reveal`, `_extract_answer_key` and the badge in
   `services/report_service.py`; the payload check and `_answer_reveal` in
   `websocket/gateway.py`. Question `config` is sent to players, so answer keys must stay in
   `answer_data`.
-- **Images (T8) have no foothold yet:** no upload or image serving, and prompts are
-  `bleach`-sanitized down to `b`/`i`/`br`/`u`, so `<img>` tags are stripped.
+- **Images (T8, `docs/design-t8-images.md`)** are rows in `question_images`, owned by a game,
+  served publicly at `/api/images/{id}` (unguessable id). Questions refer to them only through
+  `config.imageId` / `optionImages` / `mapImageId`, never `<img>` in the prompt (still
+  `bleach`-sanitized to `b`/`i`/`br`/`u`). Game JSON with images is format version 2.
 - **Redis `session:*` keys are never expired or cleaned after a normal game end** (confirmed
   by reading, not yet observed live) — see `services/`. Question update/delete integrity is
   handled by `services/question_service` (T4).
-- **Known access-control soft spots** (see `routers/` and `websocket/`): host `merge-guest`
-  can touch any guest; `oauth2-callback` trusts a header; `rejoin_room` promotes any ADMIN to
-  host.
+- **Known access-control soft spots** (see `routers/` and `websocket/`): `oauth2-callback`
+  trusts a header. (Host `merge-guest` was scoped to its session and course, and
+  `rejoin_room` no longer promotes any ADMIN to host — both fixed later.)
 - Rate limits are disabled in development, and many rejection paths only log in
   stress-test mode, so local runs hide some failures.

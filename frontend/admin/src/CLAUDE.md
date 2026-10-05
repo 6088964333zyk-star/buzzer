@@ -10,12 +10,13 @@ guests, games and questions, and past sessions.
   (Courses, Users, Guests), then a secondary **Host & play** group (Games, Sessions, and links that
   open `/host/` and `/player/` in a new tab), then Logout. `RequireAdmin` decodes the JWT
   (`lib/auth.ts`): missing/expired → `/login`; role not ADMIN → `NotAdminPage`.
-- `index.css` — Tailwind directives and a hardcoded dark body background/text.
+- `index.css` — imports `theme.css` (the T9 color tokens), Tailwind directives, token-based body colors and the global `:focus-visible` outline.
 - `pages/` — One self-contained page per screen, including the ~790-line `QuestionEditorPage`
   and the client-side CSV mapping wizard in `RosterPage`. See `pages/CLAUDE.md`.
-- `components/` — `ui/` primitives: `Button`, `Card`, `Input`. See `components/CLAUDE.md`.
-- `lib/` — The fullest `api.ts` of the three apps (`put`, `patch`, `postForm`, `download`), the
-  JWT claim reader `auth.ts`, and `cn`. See `lib/CLAUDE.md`.
+- `components/` — `ui/` primitives (`Button`, `Card`, `Input`) plus the editor's `MapCanvas`/`MapPicker`
+  (T7) and `ImageLibrary`/`ImagePicker` (T8). See `components/CLAUDE.md`.
+- `lib/` — `api.ts` (`put`, `patch`, `postForm`, `putForm`, `download`), the JWT claim reader
+  `auth.ts`, `images.ts` (T8), `mapPin.ts`, `numeric.ts` and `cn`. See `lib/CLAUDE.md`.
 
 ## How it fits in
 One of three separate frontends sharing no code. Built with `base: '/admin/'` and served by nginx
@@ -34,5 +35,11 @@ at `localhost:8080/admin/`; dev server on 5175. Pure REST, no Socket.io: almost 
 - Known editor bug: blank multi-select/FITB rows with points inflate `points_value`.
 - **Game access is course-based** (T4): a game belongs to one course, set once. Per-game grants
   (`UserGameAccess`) no longer do anything and have no UI; the endpoints remain unused.
-- **Theming (T9):** hardcoded palette in `index.css`, the sidebar, and every page; the `ui/`
-  primitives cover only a small part of the UI.
+- **Theming (T9, `docs/design-t9-theming.md`):** colors come only from the tokens in
+  `theme.css` (light in `:root`, dark in `:root.dark`), mapped by `../tailwind.tokens.ts`, which
+  *replaces* Tailwind's palette: a raw class like `bg-slate-800` generates no CSS at all. Use
+  roles (`bg-surface`, `text-fg-muted`, `bg-accent text-on-accent`, `text-danger-fg`, …).
+  `theme.css`, `../tailwind.tokens.ts` and `lib/theme.ts` are byte-identical in all three apps.
+  Run `scripts/check_theme_tokens.sh` and `node scripts/check_contrast.mjs` before an MR (they
+  are not in CI: the grader requires `.gitlab-ci.yml` unmodified).
+  The `ThemeToggle` sits in the sidebar footer (fixed top-right on Login and NotAdmin).

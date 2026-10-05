@@ -12,7 +12,10 @@ its finished sessions with downloads. Design: `docs/design-t4-host.md`.
 - `QuestionEditorPage.tsx` — Add, edit, delete and reorder questions via
   `/host/games/:gameId/questions[...]`. Copied from the admin editor; differences are listed in
   its header comment (no JSON export; an unknown type throws instead of saving as
-  fill-in-the-blank; `points_value` ignores blank rows).
+  fill-in-the-blank; `points_value` ignores blank rows). T8: an `ImageLibrary` panel for the
+  game's images, and `ImagePicker`s for the prompt image, each MC/multi-select option and the
+  `map_pin` map. The whole `config` is sent on every save, so leaving a key out removes that
+  image (`docs/design-t8-images.md`).
 - `RosterPage.tsx` — Upload a roster CSV: it is parsed in the browser, a preview shows who is
   added, updated and **deactivated**, and only "Confirm upload" posts the rows as JSON to
   `/host/courses/:id/roster/import`. Each row can be toggled active/inactive with `PATCH`.
