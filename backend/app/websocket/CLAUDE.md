@@ -61,9 +61,10 @@ Socket.IO rooms: `{code}` (everyone), `{code}:host` (host-only events), `user:{i
   — which is copied in `services/report_service.py` and `game_service`, and the copies have
   already drifted (see `services/CLAUDE.md` for the full list).
 - **HOST means "the user who created this session" (or ADMIN)** in `join_room`, not any
-  HOST of the course, matching the REST rule in `routers/game.py`. **But `rejoin_room` makes
-  any ADMIN the host**, so an admin who joined as a player becomes host on reconnect, and
-  `rejoin_room` skips the LOBBY/IN_PROGRESS status check that `join_room` does.
+  HOST of the course, matching the REST rule in `routers/game.py`. `rejoin_room` infers the
+  role: the creator is the host, and an ADMIN is the host only if they aren't a player in the
+  session (an admin who joined as a player stays a player). When it has to re-add a player
+  missing from Redis, it applies `join_room`'s LOBBY/IN_PROGRESS check.
 - The in-memory dicts are per process. In development there is no Redis pub/sub manager
   (it drops connections under idle load), so run a single backend worker locally.
 - Many diagnostic warnings (e.g. `submit_answer_no_active_question`) are logged only when

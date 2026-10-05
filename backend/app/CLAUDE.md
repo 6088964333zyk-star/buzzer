@@ -65,7 +65,7 @@ call the REST API for setup and use Socket.IO for play.
   by reading, not yet observed live) — see `services/`. Question update/delete integrity is
   handled by `services/question_service` (T4).
 - **Known access-control soft spots** (see `routers/` and `websocket/`): host `merge-guest`
-  can touch any guest; `oauth2-callback` trusts a header; `rejoin_room` promotes any ADMIN to
-  host.
+  can touch any guest; `oauth2-callback` trusts a header. (`rejoin_room` promoting any ADMIN
+  to host was fixed.)
 - Rate limits are disabled in development, and many rejection paths only log in
   stress-test mode, so local runs hide some failures.
