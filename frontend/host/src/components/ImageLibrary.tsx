@@ -65,11 +65,11 @@ export function ImageLibrary({
   }
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-surface/40 p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-slate-100">Images</h3>
-          <p className="text-xs text-slate-400">
+          <h3 className="font-semibold text-fg">Images</h3>
+          <p className="text-xs text-fg-subtle">
             PNG, JPEG, GIF or WebP, up to 2 MB. Use large, clear, high-contrast images.
           </p>
         </div>
@@ -86,31 +86,31 @@ export function ImageLibrary({
         </Button>
       </div>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <p className="text-danger-fg text-sm">{error}</p>}
 
       {images.length === 0 ? (
-        <p className="text-slate-500 text-sm">No images yet.</p>
+        <p className="text-fg-subtle text-sm">No images yet.</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {images.map((img) => (
-            <div key={img.id} className="rounded-lg border border-slate-700 bg-slate-900/60 p-2 space-y-1">
+            <div key={img.id} className="rounded-lg border border-border bg-bg/60 p-2 space-y-1">
               <a href={imageUrl(img.id, img.sha256)} target="_blank" rel="noopener noreferrer">
                 <img
                   src={imageUrl(img.id, img.sha256)}
                   alt={img.filename}
-                  className="w-full h-24 object-contain rounded bg-slate-950"
+                  className="w-full h-24 object-contain rounded bg-bg"
                 />
               </a>
-              <p className="text-xs text-slate-200 truncate" title={img.filename}>{img.filename}</p>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-xs text-fg truncate" title={img.filename}>{img.filename}</p>
+              <p className="text-[11px] text-fg-subtle">
                 {img.width}×{img.height} · {Math.max(1, Math.round(img.size_bytes / 1024))} KB
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-fg-subtle">
                 {img.used_by.length > 0 ? `Used by Q${img.used_by.join(', Q')}` : 'Not used'}
               </p>
               <div className="flex gap-1">
                 <label
-                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-300 hover:bg-slate-700 cursor-pointer ${busy ? 'pointer-events-none opacity-50' : ''}`}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-fg-muted hover:bg-surface-raised cursor-pointer ${busy ? 'pointer-events-none opacity-50' : ''}`}
                   title="Replace with another file (keeps every question that uses it)"
                 >
                   <Replace size={12} /> Replace

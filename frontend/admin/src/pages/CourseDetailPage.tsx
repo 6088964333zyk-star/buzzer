@@ -25,7 +25,7 @@ interface User {
 interface Game { id: number; title: string; course_id: number | null }
 interface RosterEntry { id: number; is_active: boolean }
 
-const selectClass = 'rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 text-sm';
+const selectClass = 'rounded-lg border border-border-strong bg-surface px-3 py-2 text-fg text-sm';
 
 function errorText(reason: unknown, fallback: string): string {
   return reason instanceof Error ? reason.message : fallback;
@@ -108,11 +108,11 @@ export default function CourseDetailPage() {
     return (
       <div className="p-8 max-w-3xl space-y-4">
         <BackLink />
-        <p className="text-red-400 text-sm">{courseError}</p>
+        <p className="text-danger-fg text-sm">{courseError}</p>
       </div>
     );
   }
-  if (!course) return <div className="p-8 text-slate-400">Loading…</div>;
+  if (!course) return <div className="p-8 text-fg-subtle">Loading…</div>;
 
   const id = course.id;
 
@@ -184,8 +184,8 @@ export default function CourseDetailPage() {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold text-slate-100">{course.name}</h2>
-              <p className="text-slate-400 text-sm mt-0.5">{course.semester}</p>
+              <h2 className="text-xl font-bold text-fg">{course.name}</h2>
+              <p className="text-fg-subtle text-sm mt-0.5">{course.semester}</p>
             </div>
             {!editing && (
               <Button variant="outline" size="sm" onClick={startEdit}>
@@ -218,28 +218,28 @@ export default function CourseDetailPage() {
         )}
       </Card>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <p className="text-danger-fg text-sm">{error}</p>}
 
       {/* People with access */}
       <Card>
         <CardHeader>
-          <h3 className="font-semibold text-slate-100">People with access</h3>
-          <p className="text-slate-400 text-xs mt-1">
+          <h3 className="font-semibold text-fg">People with access</h3>
+          <p className="text-fg-subtle text-xs mt-1">
             Hosts can run and edit this course&apos;s games, manage its roster, and download its session
             results. Players can join this course&apos;s games.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {access === null && <p className="text-slate-500 text-sm">Couldn&apos;t load who has access.</p>}
-          {access?.length === 0 && <p className="text-slate-500 text-sm">No one has been granted access yet.</p>}
+          {access === null && <p className="text-fg-subtle text-sm">Couldn&apos;t load who has access.</p>}
+          {access?.length === 0 && <p className="text-fg-subtle text-sm">No one has been granted access yet.</p>}
           {access?.map((entry) => (
             <div key={entry.user_id} className="flex items-center justify-between gap-3">
-              <Link to={`/users/${entry.user_id}`} className="text-slate-200 text-sm hover:underline flex-1">
+              <Link to={`/users/${entry.user_id}`} className="text-fg text-sm hover:underline flex-1">
                 {userLabel(entry)}
-                {entry.username && <span className="ml-2 text-xs text-slate-500">@{entry.username}</span>}
+                {entry.username && <span className="ml-2 text-xs text-fg-subtle">@{entry.username}</span>}
               </Link>
               {entry.user_role === 'ADMIN' ? (
-                <span className="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">Admin</span>
+                <span className="px-2 py-0.5 rounded-full text-xs bg-surface-raised text-fg-muted">Admin</span>
               ) : (
                 <select
                   className={selectClass}
@@ -258,9 +258,9 @@ export default function CourseDetailPage() {
             </div>
           ))}
 
-          <div className="pt-3 border-t border-slate-700 space-y-2">
+          <div className="pt-3 border-t border-border space-y-2">
             {access === null ? null : addable.length === 0 ? (
-              <p className="text-slate-500 text-sm">No other users to add.</p>
+              <p className="text-fg-subtle text-sm">No other users to add.</p>
             ) : (
               <div className="flex gap-2 flex-wrap">
                 <select
@@ -286,7 +286,7 @@ export default function CourseDetailPage() {
                 <Button size="sm" onClick={addPerson} disabled={!addUserId || busy}>Add</Button>
               </div>
             )}
-            <p className="text-slate-500 text-xs">
+            <p className="text-fg-subtle text-xs">
               NetID users appear here after their first sign-in. Students on the roster can already join
               without being added.
             </p>
@@ -297,19 +297,19 @@ export default function CourseDetailPage() {
       {/* Game access: course-based (docs/design-t4-admin.md A4) */}
       <Card>
         <CardHeader>
-          <h3 className="font-semibold text-slate-100">Game access</h3>
-          <p className="text-slate-400 text-xs mt-1">
+          <h3 className="font-semibold text-fg">Game access</h3>
+          <p className="text-fg-subtle text-xs mt-1">
             A game belongs to one course, set once. Access to a game comes from access to its course.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           {access === null || roster === null ? (
-            <p className="text-slate-500 text-sm">Counts unavailable: access or roster failed to load.</p>
+            <p className="text-fg-subtle text-sm">Counts unavailable: access or roster failed to load.</p>
           ) : (
-          <div className="text-sm text-slate-300 space-y-1">
-            <p><span className="font-semibold text-slate-100">Run and edit:</span> {hostCount} host{hostCount === 1 ? '' : 's'}.</p>
+          <div className="text-sm text-fg-muted space-y-1">
+            <p><span className="font-semibold text-fg">Run and edit:</span> {hostCount} host{hostCount === 1 ? '' : 's'}.</p>
             <p>
-              <span className="font-semibold text-slate-100">Play:</span> {playerCount} user{playerCount === 1 ? '' : 's'} granted
+              <span className="font-semibold text-fg">Play:</span> {playerCount} user{playerCount === 1 ? '' : 's'} granted
               access, {activeRoster} student{activeRoster === 1 ? '' : 's'} on the active roster (these can overlap);
               hosts can play too.
             </p>
@@ -317,12 +317,12 @@ export default function CourseDetailPage() {
           )}
 
           {courseGames.length === 0 ? (
-            <p className="text-slate-500 text-sm">No games in this course yet.</p>
+            <p className="text-fg-subtle text-sm">No games in this course yet.</p>
           ) : (
             <ul className="space-y-1">
               {courseGames.map((g) => (
                 <li key={g.id}>
-                  <Link to={`/games/${g.id}/questions`} className="text-slate-200 text-sm hover:underline">
+                  <Link to={`/games/${g.id}/questions`} className="text-fg text-sm hover:underline">
                     {g.title}
                   </Link>
                 </li>
@@ -331,7 +331,7 @@ export default function CourseDetailPage() {
           )}
 
           {unassignedGames.length > 0 && (
-            <div className="pt-3 border-t border-slate-700 flex gap-2 flex-wrap items-center">
+            <div className="pt-3 border-t border-border flex gap-2 flex-wrap items-center">
               <select
                 className={`${selectClass} flex-1 min-w-48`}
                 value={assignGameId}
@@ -360,8 +360,8 @@ export default function CourseDetailPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-slate-100">Roster</h3>
-              <p className="text-slate-400 text-sm mt-0.5">
+              <h3 className="font-semibold text-fg">Roster</h3>
+              <p className="text-fg-subtle text-sm mt-0.5">
                 {roster === null ? "Couldn't load the roster." : `${activeRoster} active / ${roster.length} total roster entries`}
               </p>
             </div>
@@ -369,7 +369,7 @@ export default function CourseDetailPage() {
               <Users size={14} className="mr-1" /> Manage roster
             </Button>
           </div>
-          <p className="text-slate-500 text-xs mt-2">
+          <p className="text-fg-subtle text-xs mt-2">
             Students on the active roster can sign in with NetID and join this course&apos;s games.
           </p>
         </CardHeader>
@@ -380,7 +380,7 @@ export default function CourseDetailPage() {
 
 function BackLink() {
   return (
-    <Link to="/courses" className="flex items-center gap-2 text-slate-400 hover:text-slate-100 text-sm">
+    <Link to="/courses" className="flex items-center gap-2 text-fg-subtle hover:text-fg text-sm">
       <ArrowLeft size={14} /> Courses
     </Link>
   );

@@ -58,10 +58,10 @@ export default function GamesPage() {
         </Button>
       </form>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-      {loading && <p className="text-slate-400">Loading…</p>}
+      {error && <p className="text-danger-fg text-sm">{error}</p>}
+      {loading && <p className="text-fg-subtle">Loading…</p>}
       {!loading && games.length === 0 && (
-        <p className="text-slate-400">No games in this course yet.</p>
+        <p className="text-fg-subtle">No games in this course yet.</p>
       )}
 
       <div className="space-y-3">
@@ -69,8 +69,8 @@ export default function GamesPage() {
           <Card key={g.id}>
             <CardContent className="flex items-center justify-between py-4">
               <div>
-                <p className="font-semibold text-slate-100">{g.title}</p>
-                {g.description && <p className="text-slate-400 text-sm">{g.description}</p>}
+                <p className="font-semibold text-fg">{g.title}</p>
+                {g.description && <p className="text-fg-subtle text-sm">{g.description}</p>}
               </div>
               <Button
                 variant="outline"

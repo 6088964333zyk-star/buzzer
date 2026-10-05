@@ -27,10 +27,10 @@ export function MapPicker({
   const radiiOk = 0 <= value.fullRadius && value.fullRadius < value.zeroRadius && value.zeroRadius <= 1;
   return (
     <div className="space-y-3">
-      <label className="block text-xs text-slate-400">
+      <label className="block text-xs text-fg-subtle">
         Click the map to set the correct location
         {value.target && (
-          <span className="ml-2 text-slate-500">
+          <span className="ml-2 text-fg-subtle">
             ({(value.target.x * 100).toFixed(1)}%, {(value.target.y * 100).toFixed(1)}%)
           </span>
         )}
@@ -45,7 +45,7 @@ export function MapPicker({
       />
       <div className="flex gap-4">
         <div>
-          <label className="block text-xs text-slate-400 mb-1">Full points within (% of map width)</label>
+          <label className="block text-xs text-fg-subtle mb-1">Full points within (% of map width)</label>
           <Input
             type="number"
             step="0.5"
@@ -56,7 +56,7 @@ export function MapPicker({
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">Zero points beyond (% of map width)</label>
+          <label className="block text-xs text-fg-subtle mb-1">Zero points beyond (% of map width)</label>
           <Input
             type="number"
             step="0.5"
@@ -69,9 +69,9 @@ export function MapPicker({
         </div>
       </div>
       {!radiiOk && (
-        <p className="text-red-400 text-xs">The "full points" radius must be smaller than the "zero points" radius.</p>
+        <p className="text-danger-fg text-xs">The "full points" radius must be smaller than the "zero points" radius.</p>
       )}
-      <p className="text-slate-500 text-xs">
+      <p className="text-fg-subtle text-xs">
         Green circle: full points. Yellow ring: partial points, falling to zero at its edge.
       </p>
     </div>
