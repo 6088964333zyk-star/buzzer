@@ -27,7 +27,7 @@ exports/reports. Routers stay thin and call into here.
   `question_ids`, `host_sid`, `timer_remaining_seconds`), `session:{id}:players`,
   `…:player:{uid}`, `…:question` (current question id, start time, limit, number/total —
   *not* the phase), `…:answered:{qid}`, `…:dist:{qid}` (answer distribution);
-  `delete_room_state` cleanup. `restore_from_mysql` exists but is **dead code**: nothing
+  `delete_room_state` cleanup and `expire_session_state` (shorten all session keys' TTL). `restore_from_mysql` exists but is **dead code**: nothing
   calls it, and it only returns a dict without writing to Redis.
 - `map_pin.py` — helpers for the `map_pin` type (T7): `is_unit_point` (the one point
   check used by the schema, gateway and scoring; rejects bools/NaN/out of range),
@@ -93,14 +93,16 @@ game lifecycle through `game_service` and `state_service`.
 - **Roster upload is a full replace (kept deliberately in T4).** Any active netid missing from
   the upload is deactivated, so uploading "just the new students" deactivates the whole
   class. The host UI shows a preview before confirming. Oversize uploads are rejected whole.
-- **Redis game-state keys never expire (confirmed by reading; not yet observed live).**
-  Only `room:{code}` (90 min) and the gateway's `ws_rate:{ip}` have TTLs; every
-  `session:{id}:*` key is written without one. `complete_game` doesn't call
-  `delete_room_state` — its "keep 10 more minutes" comment is wrong (the gateway then re-saves
-  the room key with a fresh 90-minute TTL). Cleanup only runs from `abandon_game` (host gone
-  5 min during IN_PROGRESS) and the host's session DELETE; `admin.delete_game` never touches
-  Redis. Redis has no maxmemory/eviction policy in `docker-compose.yml`, so `session:*` keys
-  pile up with every completed game and every abandoned lobby.
+- **Redis key lifetimes.** `room:{code}` has `ROOM_TTL` (90 min, refreshed on activity) and
+  the gateway's `ws_rate:{ip}` its own short TTL. Every `session:{id}:*` key gets
+  `SESSION_TTL` (24 h) when it is created; later updates keep the existing TTL
+  (`keepttl` / `EXPIRE NX`) rather than extending it. `complete_game` shortens them all to
+  `ROOM_TTL` (`expire_session_state`), so results and reconnects keep working until the room
+  key goes. `abandon_game` and the host's session DELETE still delete everything at once;
+  `admin.delete_game` leaves Redis alone, and the 24 h TTL cleans up after it. A single
+  session that stays live for more than 24 h would lose its player set; nothing refreshes it.
+  Redis runs with `maxmemory 512mb` and `allkeys-lru` (`docker-compose.yml`), so under memory
+  pressure it evicts *any* key, live rooms included. The TTLs keep it well below that limit.
 - **Exports read the game's current questions,** not a snapshot from when the session was
   played. Editing or reordering questions afterwards changes old sessions' CSV and HTML
   reports. Answered questions can't be deleted or change type (`question_service`).

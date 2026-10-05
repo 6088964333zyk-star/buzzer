@@ -61,9 +61,9 @@ call the REST API for setup and use Socket.IO for play.
   served publicly at `/api/images/{id}` (unguessable id). Questions refer to them only through
   `config.imageId` / `optionImages` / `mapImageId`, never `<img>` in the prompt (still
   `bleach`-sanitized to `b`/`i`/`br`/`u`). Game JSON with images is format version 2.
-- **Redis `session:*` keys are never expired or cleaned after a normal game end** (confirmed
-  by reading, not yet observed live) — see `services/`. Question update/delete integrity is
-  handled by `services/question_service` (T4).
+- **Redis `session:*` keys expire:** 24 h from creation, shortened to the room's 90 min at
+  game over — see `services/`. Question update/delete integrity is handled by
+  `services/question_service` (T4).
 - **Known access-control soft spots** (see `routers/` and `websocket/`): `oauth2-callback`
   trusts a header. (Host `merge-guest` was scoped to its session and course, and
   `rejoin_room` no longer promotes any ADMIN to host — both fixed later.)
