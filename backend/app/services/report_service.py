@@ -70,7 +70,20 @@ def _answer_reveal(q: Question) -> dict:
             "acceptedAnswers": q.answer_data.get("acceptedAnswers", []),
             "editDistance": q.answer_data.get("editDistance", 0),
         }
+    if q.type == "multi_select":
+        return {
+            "type": "multi_select",
+            "answerPoints": q.answer_data.get("answer_points", []),
+        }
     return {}
+
+
+def _multi_select_keys(answer_data: dict | None) -> list[str]:
+    """One distribution key per ticked option, as game_service.record_answer counts them."""
+    indices = (answer_data or {}).get("selectedIndices")
+    if not isinstance(indices, list):
+        return []
+    return [str(i) for i in indices if isinstance(i, int) and not isinstance(i, bool)]
 
 
 def _extract_answer_key(
@@ -225,6 +238,20 @@ def _render_bar_chart(
         bars = [
             {"label": "True", "count": dist.get("true", 0), "correct": cv is True},
             {"label": "False", "count": dist.get("false", 0), "correct": cv is False},
+        ]
+    elif q.type == "multi_select":
+        # Counts are ticks per option (a player can tick several). Options worth
+        # points are marked correct, as on the host results screen.
+        pts = (
+            reveal.get("answerPoints") if reveal.get("type") == "multi_select" else None
+        )
+        bars = [
+            {
+                "label": f"{_OPTION_LETTERS[i]}\u2002{_esc(opt)}",
+                "count": dist.get(str(i), 0),
+                "correct": (i < len(pts) and pts[i] > 0) if pts is not None else None,
+            }
+            for i, opt in enumerate(options)
         ]
     else:
         bars = []
@@ -500,6 +527,10 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
 
         dist: dict[str, int] = defaultdict(int)
         for s in q_scores:
+            if q.type == "multi_select":
+                for key in _multi_select_keys(s.answer_data):
+                    dist[key] += 1
+                continue
             key = _extract_answer_key(q.type, s.answer_data, q.answer_data)
             if key is not None:
                 dist[key] += 1
@@ -510,6 +541,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
         type_badge = {
             "multiple_choice": ("Multiple Choice", "badge-mc"),
             "true_false": ("True / False", "badge-tf"),
+            "multi_select": ("Multi-Select", "badge-mc"),
             "fill_in_the_blank": ("Fill in the Blank", "badge-fitb"),
             "map_pin": ("Map Pin", "badge-fitb"),
             "numeric": ("Numeric", "badge-fitb"),
@@ -522,7 +554,7 @@ async def build_session_report(db: AsyncSession, session_id: str) -> tuple[str, 
         pts_val = f"{q.points_value:g}"
         pts_label = f"{pts_val} pt{'s' if q.points_value != 1 else ''}"
 
-        if q.type in ("multiple_choice", "true_false"):
+        if q.type in ("multiple_choice", "true_false", "multi_select"):
             chart = _render_bar_chart(q, dict(dist), reveal, total_players)
         elif q.type == "fill_in_the_blank":
             chart = _render_word_cloud(q, dict(dist), reveal)

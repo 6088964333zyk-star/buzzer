@@ -49,8 +49,8 @@ call the REST API for setup and use Socket.IO for play.
   `docs/design-t7-map-question.md`, helpers in `services/map_pin.py`) and `numeric` (T7,
   numeric estimate with partial credit; `docs/design-t7-numeric.md`, `services/numeric.py`).
 - **Adding a question type (T7) touches many places**, because per-type answer logic is
-  copied rather than shared — and the copies have drifted (the HTML report already can't
-  render multi_select): the type regex twice and the validator in `schemas/admin.py`;
+  copied rather than shared — and the copies drift (the HTML report once had no
+  multi_select branch at all): the type regex twice and the validator in `schemas/admin.py`;
   `calculate_score`, `record_answer`'s distribution keys and both summaries in
   `services/game_service.py`; `_answer_reveal`, `_extract_answer_key` and the badge in
   `services/report_service.py`; the payload check and `_answer_reveal` in

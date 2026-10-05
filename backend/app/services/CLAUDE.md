@@ -71,7 +71,8 @@ game lifecycle through `game_service` and `state_service`.
   summary functions (`get_player_question_summary`, `get_host_question_summary`);
   `websocket/gateway.py` `_answer_reveal` and the `submit_answer` payload check; and in
   `report_service.py` its own `_answer_reveal`, `_extract_answer_key` and type badge. The
-  report copies already lack a multi_select branch. `map_pin` and `numeric` (T7) are wired
+  report's multi_select branch was missing until a later fix; it counts one key per ticked
+  option (`_multi_select_keys`), like `record_answer`. `map_pin` and `numeric` (T7) are wired
   into all of them; their reveals always include the answer, so their branches run **before**
   the COMPLETENESS early return in each `_answer_reveal` and summary. The report draws
   neither as bars: each gets a one-line text summary instead.
