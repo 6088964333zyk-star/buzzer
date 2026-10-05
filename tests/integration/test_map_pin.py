@@ -143,6 +143,7 @@ def test_import_export_round_trip(world: World):
         world.url("/admin/games/import"),
         headers=world.admin,
         files={"file": ("g.json", json.dumps(bundle), "application/json")},
+        data={"course_id": world.course_a},
     )
     assert r.status_code == 201, r.text
     game_id = r.json()["game_id"]

@@ -7,7 +7,7 @@ from typing import Annotated
 
 import bleach
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -260,7 +260,7 @@ async def create_game(
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Game:
-    if body.course_id is not None and not await db.get(Course, body.course_id):
+    if not await db.get(Course, body.course_id):
         raise NotFoundError(f"Course {body.course_id} not found")
     game = Game(
         title=body.title,
@@ -482,6 +482,7 @@ async def export_game(
 @router.post("/games/import", status_code=201)
 async def import_game(
     file: Annotated[UploadFile, File(description="buzzer/game JSON bundle")],
+    course_id: Annotated[int, Form(gt=0, description="Course the new game belongs to")],
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
@@ -501,12 +502,17 @@ async def import_game(
         )
 
     game_data = bundle.get("game", {})
+    if not isinstance(game_data, dict):
+        raise HTTPException(status_code=422, detail="'game' must be an object")
+    # The chosen course always wins over any course_id inside the file.
     try:
-        game_meta = GameCreate(**game_data)
+        game_meta = GameCreate(**{**game_data, "course_id": course_id})
     except Exception as exc:
         raise HTTPException(
             status_code=422, detail=f"Invalid game metadata: {exc}"
         ) from exc
+    if not await db.get(Course, course_id):
+        raise NotFoundError(f"Course {course_id} not found")
 
     questions_raw = bundle.get("questions", [])
     if not isinstance(questions_raw, list):
@@ -518,6 +524,7 @@ async def import_game(
         title=game_meta.title,
         description=game_meta.description,
         max_players=game_meta.max_players,
+        course_id=game_meta.course_id,
     )
     db.add(game)
     await db.flush()

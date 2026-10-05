@@ -280,6 +280,7 @@ def test_export_import_version_2_round_trip(world: World):
         world.url("/admin/games/import"),
         headers=world.admin,
         files={"file": ("g.json", json.dumps(exported), "application/json")},
+        data={"course_id": world.course_a},
     )
     assert r.status_code == 201, r.text
     new_game = r.json()["game_id"]
@@ -300,6 +301,7 @@ def test_import_rejects_bad_images_and_unknown_refs(world: World):
             world.url("/admin/games/import"),
             headers=world.admin,
             files={"file": ("g.json", json.dumps(bundle), "application/json")},
+            data={"course_id": world.course_a},
         )
 
     base = {"format": "buzzer/game", "version": 2, "game": {"title": f"Bad import {world.tag}"}}

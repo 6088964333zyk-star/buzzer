@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import subprocess
 import uuid
 
 import httpx
@@ -90,14 +92,33 @@ class World:
         token = r.json()["access_token"]
         return {"id": user_id, "token": token, "h": {"Authorization": f"Bearer {token}"}}
 
-    def admin_game(self, course_id: int | None) -> int:
-        body = {"title": f"Admin game {self.tag}"}
-        if course_id is not None:
-            body["course_id"] = course_id
+    def admin_game(self, course_id: int) -> int:
+        body = {"title": f"Admin game {self.tag}", "course_id": course_id}
         r = httpx.post(self.url("/admin/games"), json=body, headers=self.admin, timeout=_T)
         assert r.status_code == 201, r.text
         self.game_ids.append(r.json()["id"])
         return r.json()["id"]
+
+    def legacy_game(self) -> int:
+        """A course-less game, as migration 004 leaves pre-T4 rows (design D1).
+
+        The API can no longer create one, so clear course_id with the mysql
+        client inside the stack's container (like test_session_ttl's redis-cli).
+        """
+        game_id = self.admin_game(self.course_a)
+        subprocess.run(
+            [
+                "docker", "compose", "exec", "-T", "mysql", "sh", "-c",
+                'mysql -uapp_user -p"$MYSQL_PASSWORD" buzzer '
+                f'-e "UPDATE games SET course_id = NULL WHERE id = {game_id}"',
+            ],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        r = httpx.get(self.url(f"/admin/games/{game_id}"), headers=self.admin, timeout=_T)
+        assert r.json()["course_id"] is None, r.text
+        return game_id
 
     def host_game(self, headers: dict, course_id: int) -> int:
         r = httpx.post(
@@ -202,7 +223,7 @@ async def _finish(host: TestSocketClient, player: TestSocketClient, n_questions:
 def test_host_can_manage_own_course_but_not_others(world: World):
     own_game = world.host_game(world.host_a["h"], world.course_a)
     other_game = world.admin_game(world.course_b)
-    legacy_game = world.admin_game(None)
+    legacy_game = world.legacy_game()
     h = world.host_a["h"]
 
     titles = [
@@ -261,7 +282,7 @@ def test_host_cannot_change_a_games_course(world: World):
 def test_room_rule_for_course_owned_and_legacy_games(world: World):
     owned = world.host_game(world.host_a["h"], world.course_a)
     world.add_question(world.host_a["h"], owned)
-    legacy = world.admin_game(None)
+    legacy = world.legacy_game()
     world.add_question(world.admin, legacy, prefix="/admin")
 
     # Course-owned game: only in its own course, admin included.
@@ -275,13 +296,68 @@ def test_room_rule_for_course_owned_and_legacy_games(world: World):
 
 
 def test_admin_can_assign_course_once(world: World):
-    game = world.admin_game(None)
+    game = world.legacy_game()
     url = world.url(f"/admin/games/{game}")
     assert httpx.put(url, json={"title": "renamed"}, headers=world.admin).json()["course_id"] is None
     assert httpx.put(url, json={"course_id": world.course_a}, headers=world.admin).status_code == 200
     r = httpx.put(url, json={"course_id": world.course_b}, headers=world.admin)
     assert r.status_code == 409
     assert httpx.get(url, headers=world.admin).json()["course_id"] == world.course_a
+
+
+def test_admin_game_creation_requires_a_course(world: World):
+    def titles() -> list[str]:
+        r = httpx.get(world.url("/admin/games"), headers=world.admin, timeout=_T)
+        return [g["title"] for g in r.json()]
+
+    title = f"No course {world.tag}"
+    for body in ({"title": title}, {"title": title, "course_id": None}):
+        r = httpx.post(world.url("/admin/games"), json=body, headers=world.admin, timeout=_T)
+        assert r.status_code == 422, r.text
+    r = httpx.post(
+        world.url("/admin/games"),
+        json={"title": title, "course_id": 999_999_999},
+        headers=world.admin,
+        timeout=_T,
+    )
+    assert r.status_code == 404, r.text
+    assert title not in titles()
+
+
+def test_import_attaches_the_chosen_course(world: World):
+    title = f"Import {world.tag}"
+    bundle = {
+        "format": "buzzer/game",
+        "version": 1,
+        # A course_id inside the file is ignored; the form field wins.
+        "game": {"title": title, "course_id": world.course_b},
+        "questions": [MC_QUESTION],
+    }
+
+    def post(data: dict) -> httpx.Response:
+        return httpx.post(
+            world.url("/admin/games/import"),
+            headers=world.admin,
+            files={"file": ("g.json", json.dumps(bundle), "application/json")},
+            data=data,
+            timeout=_T,
+        )
+
+    assert post({}).status_code == 422
+    assert post({"course_id": 999_999_999}).status_code == 404
+    r = httpx.get(world.url("/admin/games"), headers=world.admin, timeout=_T)
+    assert title not in [g["title"] for g in r.json()]
+
+    r = post({"course_id": world.course_a})
+    assert r.status_code == 201, r.text
+    game_id = r.json()["game_id"]
+    world.game_ids.append(game_id)
+    game = httpx.get(world.url(f"/admin/games/{game_id}"), headers=world.admin, timeout=_T)
+    assert game.json()["course_id"] == world.course_a
+    # The course's host can manage it straight away.
+    assert len(world.questions(game_id)) == 1
+    h = world.host_a["h"]
+    assert httpx.get(world.url(f"/host/games/{game_id}"), headers=h, timeout=_T).status_code == 200
 
 
 # ---------------------------------------------------------------------------
