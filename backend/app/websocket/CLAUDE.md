@@ -43,8 +43,8 @@ Socket.IO rooms: `{code}` (everyone), `{code}:host` (host-only events), `user:{i
 - **A rejected answer gets an `error` event, not `answer_received`.** Late answers
   (question locked, phase moved on, wrong question id) are refused with "Question is locked"
   / "No active question" / "Question ID does not match…". A client that only waits for
-  `answer_received` will just time out. (`scripts/simulate_players.py` queues `error` but
-  never prints it.) Exceptions: a duplicate submission gets `answer_received` with
+  `answer_received` will just time out. (`scripts/simulate_players.py` waits for the expected
+  event *or* `error` and prints the error's message.) Exceptions: a duplicate submission gets `answer_received` with
   `alreadyAnswered: true`; a socket not registered as PLAYER gets no reply at all; a
   malformed payload that makes `calculate_score` raise also gets no reply (no try/except).
 - **The advancing host decides when a question ends.** `host_advance` during `QUESTION`
