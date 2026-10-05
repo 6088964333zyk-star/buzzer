@@ -29,12 +29,15 @@ function tileImages(ids: (string | null)[] | undefined, count: number): (string 
   return Array.from({ length: count }, (_, i) => ids[i] ?? null);
 }
 
-/** Square image area of a tile; a tile without an image keeps the same height (Goldfish 12). */
+/**
+ * Square image area of a tile, capped at 20vh so two rows of tiles fit on one
+ * screen; a tile without an image keeps the same height (Goldfish 12).
+ */
 function OptionTileImage({ id, text }: { id: string | null; text: string }) {
   return id ? (
-    <img src={imageUrl(id)} alt={text} className="w-full aspect-square object-contain rounded-xl bg-black/20" />
+    <img src={imageUrl(id)} alt={text} className="w-full aspect-square max-h-[20vh] object-contain rounded-xl bg-black/20" />
   ) : (
-    <span className="w-full aspect-square rounded-xl bg-black/20 flex items-center justify-center text-center px-2 text-base">
+    <span className="w-full aspect-square max-h-[20vh] rounded-xl bg-black/20 flex items-center justify-center text-center px-2 text-base">
       {text}
     </span>
   );
