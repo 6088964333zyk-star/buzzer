@@ -4,6 +4,7 @@
 // builds); keep the copies identical.
 import { useCallback, useEffect, useRef } from 'react';
 import { MAP_URL, type MapPoint } from '../lib/mapPin';
+import { cssColor, onThemeChange } from '../lib/theme';
 
 export interface MapDot { point: MapPoint; count: number }
 
@@ -76,7 +77,7 @@ export function MapCanvas({
     if (background.complete && background.naturalWidth > 0) {
       ctx.drawImage(background, 0, 0, cssWidth, cssHeight);
     } else {
-      ctx.fillStyle = '#cfe3f2';
+      ctx.fillStyle = cssColor('map-water');
       ctx.fillRect(0, 0, cssWidth, cssHeight);
     }
 
@@ -85,7 +86,8 @@ export function MapCanvas({
     if (target) {
       const [tx, ty] = px(target);
       // Radii are in map-width units, so they scale with the canvas width.
-      for (const [r, fill] of [[zeroRadius, 'rgba(250,204,21,0.15)'], [fullRadius, 'rgba(34,197,94,0.3)']] as const) {
+      // Colors are theme tokens, read at draw time (T9 design T4).
+      for (const [r, fill] of [[zeroRadius, cssColor('warning', 0.15)], [fullRadius, cssColor('success', 0.3)]] as const) {
         if (r) {
           ctx.beginPath();
           ctx.arc(tx, ty, r * cssWidth, 0, Math.PI * 2);
@@ -101,7 +103,7 @@ export function MapCanvas({
         const [x, y] = px(d.point);
         ctx.beginPath();
         ctx.arc(x, y, 3 + 6 * Math.min(1, d.count / max), 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(99,102,241,0.75)';
+        ctx.fillStyle = cssColor('accent', 0.75);
         ctx.fill();
       }
     }
@@ -113,18 +115,22 @@ export function MapCanvas({
       ctx.fillStyle = color;
       ctx.fill();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = cssColor('surface');
       ctx.stroke();
     };
-    if (target) pin(target, '#16a34a');
-    if (point) pin(point, '#dc2626');
+    if (target) pin(target, cssColor('success'));
+    if (point) pin(point, cssColor('danger'));
   }, [aspectRatio, imageUrl, point, target, fullRadius, zeroRadius, dots]);
 
   useRedrawOnLoad(draw);
   useEffect(() => {
     draw();
     window.addEventListener('resize', draw);
-    return () => window.removeEventListener('resize', draw);
+    const unsubscribe = onThemeChange(draw);
+    return () => {
+      window.removeEventListener('resize', draw);
+      unsubscribe();
+    };
   }, [draw]);
 
   function handlePointer(e: React.PointerEvent<HTMLCanvasElement>) {
