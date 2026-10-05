@@ -6,8 +6,9 @@ FastAPI REST endpoints, all mounted under `/api` in `main.py`. Real-time game tr
 
 ## Contents
 - `__init__.py` — empty.
-- `health.py` — `GET /api/health`: pings MySQL and Redis, reports room/player counts (see
-  Gotchas — the counts are wrong).
+- `health.py` — `GET /api/health`: pings MySQL and Redis, and counts rooms still in
+  LOBBY/IN_PROGRESS and their players (`session:{id}:players`), using `SCAN`. The
+  integration suite's `docker_stack` fixture calls it to detect a running stack.
 - `auth.py` — `/api/auth/*`. `login` (username+password → access token + httpOnly refresh
   cookie; dev-only `netid` login returns a temp token), `oauth2-callback` (meant to sit
   behind the production Traefik OAuth proxy), `exchange-temp` (temp → access token), `guest`
@@ -53,8 +54,6 @@ automatically when the request finishes and rolls back on error, so most handler
 - **`oauth2-callback` trusts the `X-Auth-Request-User` header with no other check.** It is
   only safe behind the OAuth proxy; anywhere the backend is reachable directly (e.g.
   `localhost:8000`), a forged header logs in as any netid.
-- **`/api/health` counts are wrong:** it reads `room:{code}:players`, but the real key is
-  `session:{id}:players`, so players are always 0; the room count includes COMPLETED rooms.
 - `merge-guest` (host version) also takes an untyped `body: dict` and reports missing fields
   as 409 Conflict rather than 422.
 - **Prompts are sanitized with `bleach`** on create, update and import, allowing only
