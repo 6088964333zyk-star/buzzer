@@ -61,7 +61,7 @@ work in concrete ways:
   these files decided whether a Goldfish test could find real problems.
 - **Real bugs.** While writing them I found that deleting an answered question returned 204
   without deleting anything, and that Redis `session:*` keys never expire. The first was fixed
-  in T4; the second is documented.
+  in T4; the second was documented first; its fix is in merge request !18.
 
 One lesson from this step is that AI-written documentation is not reliable on its own. When a
 separate subagent fact-checked our first draft against the code, it found 14 claims that were
@@ -147,9 +147,9 @@ recorded inside the main session's log.
 ### 4. Claude Code, GitLab session (held the access token)
 
 A separate Claude Code session held my GitLab personal access token and did all GitLab API work:
-- opening merge requests (!5, !6, !8, !9, !11);
+- opening merge requests (!5, !6, !8, !9, !11, and the bug fixes and this document, !13–!19);
 - reading their status for me;
-- approving and merging after I confirmed in its own window (!3, !5, !6, !7, !8, !10).
+- approving and merging (!3, !5, !6, !7, !8, !10, !12).
 
 **It has no `ai_log` file.** It ran outside this repository on purpose, so that the token could
 never be committed with a session log (see Best Practices). Its actions are recorded instead in
@@ -205,8 +205,11 @@ this by splitting the work across sessions with different jobs:
   it never printed `.env` passwords or JWT keys. Before every push it scanned the diff for
   secrets.
 - A **separate session held the GitLab token** and did only GitLab actions: opening merge
-  requests, approving and merging. It approved or merged only after I confirmed in its own
-  window. A message from another session was never treated as my approval.
+  requests, approving and merging. Until October 5 it acted only after I confirmed in its own
+  window, and a message from another session was never treated as my approval. After that I
+  changed the rule: it acts on the main session's requests without asking me, but only after
+  reviewing the diff itself, and it reports every action to me. The main session still sends an
+  approve or merge request only when I ask for one in its window.
 - **Goldfish sessions** were deliberately fresh, so they could judge a design doc without the
   Elephant's memory.
 
