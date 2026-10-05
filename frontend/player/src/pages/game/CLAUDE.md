@@ -58,4 +58,5 @@ after the player has a token. Pages read `useGame()` only; the one outbound even
 - `answer_received` carries `isCorrect` / `pointsAwarded` immediately, before results — the UI
   hides it, but it's visible in devtools.
 - Once `game_over` arrives, the socket is closed and later connect/errors are ignored.
-- Colors are hardcoded (`OPTION_COLORS`, `bg-green-600`, `slate-*`, …) — T9 target.
+- Colors are T9 tokens only (see `../../CLAUDE.md`); `OPTION_COLORS` maps to `option-N`/`on-option-N`.
+  Page roots reserve `pt-16` for the fixed theme toggle.

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
+import ThemeToggle from '../components/ThemeToggle';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 
@@ -29,10 +30,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <ThemeToggle variant="floating" />
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <h1 className="text-2xl font-bold text-slate-100">Admin Login</h1>
-          <p className="text-slate-400 text-sm mt-1">Buzzer Administration</p>
+          <h1 className="text-2xl font-bold text-fg">Admin Login</h1>
+          <p className="text-fg-subtle text-sm mt-1">Buzzer Administration</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -51,7 +53,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
             />
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p className="text-danger-fg text-sm">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in\u2026' : 'Sign In'}
             </Button>

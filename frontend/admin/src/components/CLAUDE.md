@@ -8,6 +8,7 @@ forms, tables and dialogs are written inline in each page.
 ## Contents
 - `ui/button.tsx` — `Button` (`default` | `outline` | `ghost` | `destructive`; `sm` | `md` | `lg`).
 - `ui/card.tsx` — `Card`, `CardHeader`, `CardContent`.
+- `ThemeToggle.tsx` — light/dark toggle (T9): `variant="sidebar"` (AdminLayout footer, with a label) or `"floating"` (Login, NotAdmin).
 - `ui/input.tsx` — Styled full-width `Input`.
 - `MapCanvas.tsx` — the `map_pin` (T7) `<canvas>`: draws the map, pins, the target's radius
   circles and answer dots; taps → image fractions `{x, y}`. Sized from `aspectRatio` (never the
@@ -30,5 +31,6 @@ Used by `../pages/*`. Class merging via `../lib/utils.ts`.
   versions differ. There's no shared package, so changes must be copied by hand.
 - No `TimerBar` here (admin never runs a game).
 - Because pages build their own tables and forms, restyling these three files covers only part
-  of the admin UI — T9 theming has to go through the pages too.
-- Hardcoded palette classes (`bg-indigo-600`, `slate-*`) — T9 target.
+  of the admin UI; T9 theming went through the pages too.
+- Colors are T9 tokens only (see `../CLAUDE.md`); `MapCanvas` reads them with `cssColor()` and
+  redraws on theme change.

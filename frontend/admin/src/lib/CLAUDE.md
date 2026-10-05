@@ -20,6 +20,7 @@ and the Tailwind class-merge utility.
   Also the `GameImage` list type. Identical in all three apps.
 - `numeric.ts` — `parseNumber` / `formatNumber` / `withUnit` for the `numeric` (T7) fields in
   `QuestionEditorPage` (copied from the player app).
+- `theme.ts` — T9 light/dark state: `getTheme`, `setTheme` (saves `localStorage['buzzer-theme']`, shared by all three apps), `onThemeChange(cb)` (returns an unsubscribe), and `cssColor(token, alpha)` for canvas/QR code. Follows the OS preference until the user picks. The inline script in `index.html` applies the theme before React renders. Identical in all three apps.
 - `utils.ts` — `cn(...)` = `clsx` + `tailwind-merge`.
 
 ## How it fits in

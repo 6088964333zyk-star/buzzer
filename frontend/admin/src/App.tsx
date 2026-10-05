@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useNavigate, NavLink } from 'react-router-dom';
 import { BookOpen, Users, Gamepad2, UserX, LogOut, History, ExternalLink } from 'lucide-react';
 import { getTokenClaims } from './lib/auth';
+import ThemeToggle from './components/ThemeToggle';
 import LoginPage from './pages/LoginPage';
 import CoursesPage from './pages/CoursesPage';
 import CourseDetailPage from './pages/CourseDetailPage';
@@ -32,20 +33,20 @@ function AdminLayout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
       isActive
-        ? 'bg-indigo-600 text-white'
-        : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
+        ? 'bg-accent text-on-accent'
+        : 'text-fg-muted hover:bg-surface-raised hover:text-fg'
     }`;
 
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="w-56 shrink-0 bg-slate-900 border-r border-slate-700 flex flex-col">
-        <div className="px-6 py-5 border-b border-slate-700">
-          <h1 className="text-lg font-bold text-white">Buzzer Admin</h1>
+      <aside className="w-56 shrink-0 bg-bg border-r border-border flex flex-col">
+        <div className="px-6 py-5 border-b border-border">
+          <h1 className="text-lg font-bold text-fg">Buzzer Admin</h1>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {/* Admin tasks first; host/player actions are secondary (T4 admin-first layout) */}
-          <p className="text-xs uppercase tracking-wide text-slate-500 px-4 pt-1 pb-1">Administration</p>
+          <p className="text-xs uppercase tracking-wide text-fg-subtle px-4 pt-1 pb-1">Administration</p>
           <NavLink to="/courses" className={linkClass}>
             <BookOpen size={16} /> Courses
           </NavLink>
@@ -56,8 +57,8 @@ function AdminLayout() {
             <UserX size={16} /> Guests
           </NavLink>
 
-          <div className="border-t border-slate-700 !mt-4" />
-          <p className="text-xs uppercase tracking-wide text-slate-500 px-4 pt-4 pb-1">Host &amp; play</p>
+          <div className="border-t border-border !mt-4" />
+          <p className="text-xs uppercase tracking-wide text-fg-subtle px-4 pt-4 pb-1">Host &amp; play</p>
           <NavLink to="/games" className={linkClass}>
             <Gamepad2 size={16} /> Games
           </NavLink>
@@ -71,10 +72,11 @@ function AdminLayout() {
             <ExternalLink size={16} /> Open player app
           </a>
         </nav>
-        <div className="p-3 border-t border-slate-700">
+        <div className="p-3 border-t border-border space-y-1">
+          <ThemeToggle variant="sidebar" />
           <button
             onClick={logout}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 w-full transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-fg-muted hover:bg-surface-raised hover:text-fg w-full transition-colors"
           >
             <LogOut size={16} /> Logout
           </button>

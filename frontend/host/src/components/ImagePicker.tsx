@@ -24,14 +24,14 @@ export function ImagePicker({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700"
+          className="flex items-center gap-2 rounded-lg border border-border-strong bg-surface px-2 py-1 text-xs text-fg-muted hover:bg-surface-raised"
           title={label}
         >
           {current ? (
             <img src={imageUrl(current.id, current.sha256)} alt={current.filename} className="h-8 w-8 object-cover rounded" />
           ) : value ? (
             // Referenced but not in the list (e.g. deleted elsewhere); the server will say so on save.
-            <span className="text-amber-300">missing image</span>
+            <span className="text-warning-fg">missing image</span>
           ) : (
             <ImageIcon size={16} />
           )}
@@ -41,7 +41,7 @@ export function ImagePicker({
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-slate-500 hover:text-slate-200"
+            className="text-fg-subtle hover:text-fg"
             title="Remove image"
             aria-label="Remove image"
           >
@@ -51,9 +51,9 @@ export function ImagePicker({
       </div>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-72 rounded-lg border border-slate-600 bg-slate-900 p-2 shadow-xl">
+        <div className="absolute z-20 mt-1 w-72 rounded-lg border border-border-strong bg-bg p-2 shadow-xl">
           {images.length === 0 ? (
-            <p className="text-xs text-slate-400 p-2">Upload images in the Images panel first.</p>
+            <p className="text-xs text-fg-subtle p-2">Upload images in the Images panel first.</p>
           ) : (
             <div className="grid grid-cols-4 gap-2 max-h-56 overflow-y-auto">
               {images.map((img) => (
@@ -61,7 +61,7 @@ export function ImagePicker({
                   key={img.id}
                   type="button"
                   onClick={() => { onChange(img.id); setOpen(false); }}
-                  className={`rounded border p-0.5 ${img.id === value ? 'border-indigo-400' : 'border-slate-700 hover:border-slate-500'}`}
+                  className={`rounded border p-0.5 ${img.id === value ? 'border-accent' : 'border-border hover:border-border-strong'}`}
                   title={img.filename}
                 >
                   <img src={imageUrl(img.id, img.sha256)} alt={img.filename} className="h-14 w-full object-cover rounded" />

@@ -17,7 +17,7 @@ interface Game {
 
 interface Course { id: number; name: string; semester: string }
 
-const selectClass = 'rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 text-sm';
+const selectClass = 'rounded-lg border border-border-strong bg-surface px-3 py-2 text-fg text-sm';
 
 export default function GamesPage() {
   const [games, setGames] = useState<Game[]>([]);
@@ -171,7 +171,7 @@ export default function GamesPage() {
   return (
     <div className="p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-100">Games</h2>
+        <h2 className="text-2xl font-bold text-fg">Games</h2>
         <div className="flex gap-2 items-center">
           <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
           <select
@@ -200,23 +200,23 @@ export default function GamesPage() {
       </div>
 
       {noCourses && (
-        <p className="text-slate-400 mb-4 text-sm">
+        <p className="text-fg-subtle mb-4 text-sm">
           Every game belongs to a course.{' '}
-          <Link to="/courses" className="text-indigo-300 hover:underline">Create a course first</Link>.
+          <Link to="/courses" className="text-accent-fg hover:underline">Create a course first</Link>.
         </p>
       )}
 
-      {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
+      {error && <p className="text-danger-fg mb-4 text-sm">{error}</p>}
 
       {showForm && (
         <Card className="mb-6">
-          <CardHeader><h3 className="text-lg font-semibold text-slate-100">Create Game</h3></CardHeader>
+          <CardHeader><h3 className="text-lg font-semibold text-fg">Create Game</h3></CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-3">
               <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
               <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Course <span className="text-slate-500">(can&apos;t be changed later)</span>
+                <label className="block text-xs text-fg-subtle mb-1">
+                  Course <span className="text-fg-subtle">(can&apos;t be changed later)</span>
                 </label>
                 <select
                   className={`${selectClass} w-full`}
@@ -232,11 +232,11 @@ export default function GamesPage() {
                 placeholder="Description (optional)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                className="w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-fg placeholder:text-fg-subtle focus:border-transparent resize-none"
                 rows={3}
               />
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Max players</label>
+                <label className="block text-xs text-fg-subtle mb-1">Max players</label>
                 <Input
                   type="number"
                   value={maxPlayers}
@@ -256,11 +256,11 @@ export default function GamesPage() {
 
       {editingGame && (
         <Card className="mb-6">
-          <CardHeader><h3 className="text-lg font-semibold text-slate-100">Edit Game</h3></CardHeader>
+          <CardHeader><h3 className="text-lg font-semibold text-fg">Edit Game</h3></CardHeader>
           <CardContent>
             <form onSubmit={handleEdit} className="space-y-3">
               <Input placeholder="Title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
-              <p className="text-slate-400 text-xs">
+              <p className="text-fg-subtle text-xs">
                 Course:{' '}
                 {editingGame.course_id === null
                   ? 'none (assign one from the games list)'
@@ -270,11 +270,11 @@ export default function GamesPage() {
                 placeholder="Description (optional)"
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                className="w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-fg placeholder:text-fg-subtle focus:border-transparent resize-none"
                 rows={3}
               />
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Max players</label>
+                <label className="block text-xs text-fg-subtle mb-1">Max players</label>
                 <Input
                   type="number"
                   value={editMaxPlayers}
@@ -293,26 +293,26 @@ export default function GamesPage() {
       )}
 
       {loading ? (
-        <p className="text-slate-400">Loading\u2026</p>
+        <p className="text-fg-subtle">Loading\u2026</p>
       ) : games.length === 0 ? (
-        <p className="text-slate-400">No games yet.</p>
+        <p className="text-fg-subtle">No games yet.</p>
       ) : (
         <div className="space-y-3">
           {games.map((g) => (
             <Card key={g.id} className="flex items-center justify-between px-6 py-4">
               <div>
-                <p className="font-semibold text-slate-100">{g.title}</p>
-                {g.description && <p className="text-slate-400 text-sm mt-0.5 line-clamp-1">{g.description}</p>}
-                <p className="text-slate-500 text-xs mt-0.5">Max {g.max_players} players</p>
+                <p className="font-semibold text-fg">{g.title}</p>
+                {g.description && <p className="text-fg-subtle text-sm mt-0.5 line-clamp-1">{g.description}</p>}
+                <p className="text-fg-subtle text-xs mt-0.5">Max {g.max_players} players</p>
                 {g.course_id !== null ? (
                   <p className="text-xs mt-1">
-                    <Link to={`/courses/${g.course_id}`} className="text-indigo-300 hover:underline">
+                    <Link to={`/courses/${g.course_id}`} className="text-accent-fg hover:underline">
                       {courseMap[g.course_id]?.name ?? `Course ${g.course_id}`}
                     </Link>
                   </p>
                 ) : (
                   <div className="flex gap-2 items-center mt-2">
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-amber-900/50 text-amber-300">No course</span>
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-warning/10 text-warning-fg">No course</span>
                     {courses.length > 0 && (
                       <>
                         <select

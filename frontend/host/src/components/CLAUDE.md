@@ -8,6 +8,7 @@ the feature components for map questions (T7), numeric results (T7) and images (
 - `ui/button.tsx` — `Button` with `variant` (`default` | `outline` | `ghost` | `destructive`)
   and `size` (`sm` | `md` | `lg`); merges extra classes via `cn`.
 - `ui/card.tsx` — `Card`, `CardHeader`, `CardContent` wrappers (rounded, bordered panel).
+- `ThemeToggle.tsx` — light/dark toggle (T9), fixed top-right; mounted once in `App.tsx`.
 - `ui/input.tsx` — Styled `Input` (full width, focus ring).
 - `ui/TimerBar.tsx` — Countdown bar that turns green → yellow → red, with seconds label.
   Props: `totalSeconds`, optional `initialSeconds` (for reconnect/locked resume), `paused`.
@@ -40,5 +41,6 @@ All class merging goes through `../lib/utils.ts` (`cn`).
 - These files are near-copies of `frontend/player/src/components/ui/` and
   `frontend/admin/src/components/ui/` (no shared package). A fix or theme change here must be
   repeated in the other apps.
-- Colors are hardcoded palette classes (`bg-indigo-600`, `border-slate-700`,
-  `focus:ring-offset-slate-900`, …). Theming (T9) should start here, since every page uses these.
+- Colors are T9 tokens only (see `../CLAUDE.md`). `MapCanvas` can't use classes, so it reads
+  tokens with `cssColor()` at draw time and redraws on `onThemeChange`. Focus styling is the
+  global `:focus-visible` outline in `index.css`; don't add `focus:ring-*`.

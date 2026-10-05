@@ -309,6 +309,17 @@ python scripts/simulate_players.py --room ABCDE1 --keep
 
 Admin credentials default to the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment variables loaded automatically by the virtual environment. Override them with `--admin-user` and `--admin-pass`, or point at a different backend with `--base-url http://localhost:8000`.
 
+### Theme checks (T9)
+
+The frontends take colors only from design tokens (`frontend/*/src/theme.css`; see `docs/design-t9-theming.md`). Run both checks before opening a frontend merge request:
+
+```bash
+sh scripts/check_theme_tokens.sh     # no raw Tailwind palette classes or hex/rgb colors; shared theme files identical
+node scripts/check_contrast.mjs      # every token pair meets WCAG 2.1 AA in light and dark
+```
+
+`scripts/ui_screenshots.mjs` re-takes the screenshots in `docs/ui/` (setup and usage in `docs/ui/README.md`).
+
 ---
 
 ## Common operations
@@ -494,6 +505,9 @@ buzzer/
 ├── scripts/
 │   ├── smoke_test_websocket.py   End-to-end WebSocket smoke test
 │   ├── simulate_players.py       Multi-profile async player simulator
+│   ├── check_theme_tokens.sh     T9 guardrail: token-only colors in the frontends
+│   ├── check_contrast.mjs        T9 WCAG contrast check of the theme tokens
+│   ├── ui_screenshots.mjs        T9 Playwright screenshot tour (docs/ui/)
 │   └── seed_demo.py              Seeds a demo course and game
 ├── tests/
 │   └── integration/        Pytest integration test suite

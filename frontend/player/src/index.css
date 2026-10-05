@@ -1,3 +1,5 @@
+@import './theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,8 +10,14 @@
 
 body {
   margin: 0;
-  background: #0f172a;
-  color: #f8fafc;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
   /* Prevent tap highlight flash on mobile */
   -webkit-tap-highlight-color: transparent;
+}
+
+/* T9: one visible focus indicator for every control, in both themes */
+:focus-visible {
+  outline: 3px solid rgb(var(--focus));
+  outline-offset: 2px;
 }
