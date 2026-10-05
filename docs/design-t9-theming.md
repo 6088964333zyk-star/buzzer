@@ -153,11 +153,12 @@ than silently staying dark. `white` and `black` are deliberately not provided: u
   and the same for `divideColor`.
 - **The token object lives in `tailwind.tokens.ts`** next to each config, byte-identical in the
   three apps and included in the T8 `cmp` check. Each config imports it.
-- **No stale config.** Each app's `tsconfig.node.json` gets `"noEmit": true` (and loses
-  `composite`/emit settings if `tsc -b` requires them; otherwise the build script's `tsc -b`
-  becomes `tsc -p tsconfig.app.json --noEmit` or the equivalent), and the stale
-  `tailwind.config.js`/`.d.ts` files are deleted. Verify after the change: editing the `.ts`
-  changes what `npm run dev` serves.
+- **No stale config.** `tsc -b` refuses `noEmit` on a referenced project (TS6310), so each
+  app's `tsconfig.node.json` keeps `composite` but sets `"emitDeclarationOnly": true` with
+  `outDir` / `tsBuildInfoFile` under `node_modules/.tmp/`. No `.js` is emitted anywhere, so
+  nothing can shadow `tailwind.config.ts`; `include` adds `tailwind.tokens.ts`. The stale
+  `tailwind.config.js`/`.d.ts` files are deleted. `tsconfig.json` and the build script are
+  unchanged (§7, implementation revisions).
 
 **T3 — Theme selection and the toggle.**
 
@@ -266,9 +267,10 @@ Pairs and thresholds:
 - **Inputs use the global outline too.** The sweep removes their `focus:outline-none` and
   `focus:ring-*` classes, so every control has exactly one focus indicator.
 
-**T8 — Guardrails.** `scripts/check_theme_tokens.sh` runs in a new CI job `frontend-theme`
-(stage `lint`, image `node:20-alpine`, merge requests only, like the others), with
-`apk add --no-cache grep` so **GNU grep** (with `\b`) is used, not BusyBox.
+**T8 — Guardrails.** `scripts/check_theme_tokens.sh` is run **by hand before every frontend MR**
+(not in CI: the grader requires `.gitlab-ci.yml` unmodified; §7, implementation revisions). It
+is POSIX `sh` and needs **GNU grep** (with `\b`); it was verified to give identical results on
+macOS and in `node:20-alpine` with `apk add grep`, so it can move into CI later unchanged.
 
 - **Files** are listed with
   `find frontend/host/src frontend/player/src frontend/admin/src -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.css' \)`
@@ -289,8 +291,8 @@ Pairs and thresholds:
    `tailwind.tokens.ts`, and the three `src/lib/theme.ts`.
 4. Each failure prints file:line, and the script exits 1.
 
-`check_contrast.mjs` runs in the same job (`node` is in the image). These checks keep T8's new UI on
-tokens too.
+`node scripts/check_contrast.mjs` is run alongside it. These checks keep T8's new UI on tokens
+too.
 
 **T9 — Context fit, beyond color.**
 
@@ -421,11 +423,11 @@ in the three apps drop `focus:ring-*` and `ring-offset-*`.
 Bring host game-screen text that's below `text-lg` up to `text-lg` (QR caption excepted), and
 prompts to at least `text-3xl`.
 
-### Step 7 — Guardrails and CI (T6, T8)
+### Step 7 — Guardrails (T6, T8)
 
 - New `scripts/check_theme_tokens.sh` and `scripts/check_contrast.mjs`.
-- New `.gitlab-ci.yml` job `frontend-theme`.
-- Both must pass locally before the MR.
+- No CI job (§7, implementation revisions). Both must pass locally before the MR, and the MR
+  description says they were run.
 
 ### Step 8 — Screenshots and evidence
 
@@ -464,7 +466,7 @@ Rewrite the **Theming (T9)** gotchas in each `frontend/*/src/CLAUDE.md` and
 | Per app ×3 | `src/theme.css` (**new**), `tailwind.tokens.ts` (**new**), `src/index.css`, `tailwind.config.ts`, `tsconfig.node.json`, `index.html`, `src/lib/theme.ts` (**new**), `src/components/ThemeToggle.tsx` (**new**), `src/components/ui/*`, `src/components/MapCanvas.tsx`, every page with palette classes (~50 files, plus T8's) |
 | Host only | `pages/game/LobbyPage.tsx` and `pages/game/GameLayout.tsx` (QR codes, caption), `components/NumericBuckets.tsx` |
 | Player only | `pages/game/QuestionPage.tsx` (`OPTION_COLORS`) |
-| Repo | `scripts/check_theme_tokens.sh`, `scripts/check_contrast.mjs`, `scripts/ui_screenshots.mjs`, `scripts/package.json` (**new**), `.gitlab-ci.yml`, `docs/ui/**`, context docs |
+| Repo | `scripts/check_theme_tokens.sh`, `scripts/check_contrast.mjs`, `scripts/ui_screenshots.mjs`, `scripts/package.json` (**new**), `docs/ui/**`, context docs |
 
 **Not touched:** backend, game logic, layout and routing (apart from mounting the toggle).
 
@@ -542,3 +544,14 @@ values, the stale `tailwind.config.js`, the second QR code, the player banner an
 | 17 | Identical configs unenforced; dev-port caveat | `tailwind.tokens.ts` + `lib/theme.ts` in the `cmp` check; caveat in §5 (T2, T8) |
 | 18 | Counts off (~910 in ~50 files) | Range stated (§1) |
 | — | T8 approved before the sweep | Order flipped: T8 first, then T9 merges `main` before Step 3 (header, §6) |
+
+### Implementation revisions
+
+Found while implementing Steps 1, 2 and 7 (2026-10-05), and recorded here before the code that
+follows them, per T3 Step 6.
+
+| # | Finding | Resolution |
+|---|---|---|
+| I1 | `tsc -b` rejects `"noEmit": true` on the referenced `tsconfig.node.json` (TS6310, "may not disable emit") | Keep `composite`; `emitDeclarationOnly` with output under `node_modules/.tmp/`. No `.js` is emitted, so no stale config can shadow the `.ts` (T2) |
+| I2 | `tailwind.config.ts` importing `tailwind.tokens.ts` fails TS6307 (not in the project's file list) | `tailwind.tokens.ts` added to `tsconfig.node.json` `include` (T2) |
+| I3 | The grader's R2 check requires `.gitlab-ci.yml` "present and unmodified"; a new `frontend-theme` job would fail it, even though it only adds checks | No CI job. Both scripts are run by hand before each frontend MR, and the MR says so (T8, Step 7) |
