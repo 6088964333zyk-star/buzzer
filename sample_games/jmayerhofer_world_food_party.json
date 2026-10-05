@@ -1,0 +1,310 @@
+{
+  "format": "buzzer/game",
+  "version": 1,
+  "game": {
+    "title": "Around the World in 17 Bites",
+    "description": "A party quiz about food and travel: where dishes come from, kitchen trivia, and a few just-for-fun polls. No studying required, just an appetite.",
+    "max_players": 150
+  },
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Which spice is the most expensive by weight?",
+      "config": {
+        "options": [
+          "Cinnamon",
+          "Saffron",
+          "Cardamom",
+          "Black pepper"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ]
+      },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "The croissant's ancestor, the kipferl, comes from which country?",
+      "config": {
+        "options": [
+          "France",
+          "Belgium",
+          "Austria",
+          "Switzerland"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ]
+      },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "Sushi began as a way of preserving fish in fermented rice.",
+      "config": {},
+      "answer_data": {
+        "answer_points": {
+          "true": 1.0,
+          "false": 0.0
+        }
+      },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "Fortune cookies are a traditional dessert in restaurants in China.",
+      "config": {},
+      "answer_data": {
+        "answer_points": {
+          "true": 0.0,
+          "false": 1.0
+        }
+      },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of these are types of pasta? Select all that apply.",
+      "config": {
+        "options": [
+          "Farfalle",
+          "Orecchiette",
+          "Penne",
+          "Paella",
+          "Pierogi"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          1.0,
+          1.0,
+          1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of these dishes are traditionally made with rice? Select all that apply.",
+      "config": {
+        "options": [
+          "Risotto",
+          "Biryani",
+          "Paella",
+          "Couscous",
+          "Polenta"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          1.0,
+          1.0,
+          1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "Raw fish served without rice in Japanese cuisine is called ______.",
+      "config": {
+        "maxLength": 30
+      },
+      "answer_data": {
+        "acceptedAnswers": [
+          "sashimi"
+        ],
+        "answerPoints": [
+          1.0
+        ],
+        "editDistance": 1
+      },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "Fondue is the national dish of which country?",
+      "config": {
+        "maxLength": 30
+      },
+      "answer_data": {
+        "acceptedAnswers": [
+          "Switzerland"
+        ],
+        "answerPoints": [
+          1.0
+        ],
+        "editDistance": 2
+      },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "How tall is the Eiffel Tower, tip included, in meters?",
+      "config": {
+        "unit": "m"
+      },
+      "answer_data": {
+        "answer": 330,
+        "toleranceMode": "percent",
+        "fullTolerance": 3,
+        "zeroTolerance": 25
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "How many countries are members of the United Nations?",
+      "config": {},
+      "answer_data": {
+        "answer": 193,
+        "toleranceMode": "absolute",
+        "fullTolerance": 2,
+        "zeroTolerance": 25
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: paella comes from Valencia. Where is it?",
+      "config": {
+        "aspectRatio": 2
+      },
+      "answer_data": {
+        "target": {
+          "x": 0.4989,
+          "y": 0.2807
+        },
+        "fullRadius": 0.015,
+        "zeroRadius": 0.1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where would you eat pho in its home city, Hanoi?",
+      "config": {
+        "aspectRatio": 2
+      },
+      "answer_data": {
+        "target": {
+          "x": 0.794,
+          "y": 0.3832
+        },
+        "fullRadius": 0.015,
+        "zeroRadius": 0.1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is Naples, birthplace of the Margherita pizza?",
+      "config": {
+        "aspectRatio": 2
+      },
+      "answer_data": {
+        "target": {
+          "x": 0.5396,
+          "y": 0.2731
+        },
+        "fullRadius": 0.015,
+        "zeroRadius": 0.1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Pineapple on pizza?",
+      "config": {
+        "options": [
+          "Absolutely",
+          "Never",
+          "Only at 2 a.m.",
+          "I'll eat anything"
+        ]
+      },
+      "answer_data": {},
+      "time_limit_seconds": 15,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "COMPLETENESS",
+      "prompt": "I have eaten something on a trip without knowing what it was.",
+      "config": {},
+      "answer_data": {},
+      "time_limit_seconds": 15,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Which of these would you be brave enough to try? Select all that apply.",
+      "config": {
+        "options": [
+          "Escargot",
+          "Durian",
+          "Hákarl (fermented shark)",
+          "Balut",
+          "Haggis"
+        ]
+      },
+      "answer_data": {},
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Describe the best meal you've ever had while traveling, in a few words.",
+      "config": {
+        "maxLength": 100
+      },
+      "answer_data": {},
+      "time_limit_seconds": 45,
+      "points_value": 1.0
+    }
+  ]
+}
