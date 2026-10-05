@@ -17,8 +17,9 @@ REST routers and the three frontends. Grouped by router.
   `HostSessionItem`.
 - `admin.py` — admin CRUD shapes: courses, roster (upload result, row patch, JSON import),
   games, questions (`QuestionCreate`/`QuestionUpdate`/`QuestionResponse`/`QuestionReorder`),
-  local users, course/game access grants, `CourseAccessEntry` (per-course access list), and
-  admin session listings.
+  local users, course/game access grants, `CourseAccessEntry` (per-course access list),
+  admin session listings, and `ImageResponse` (T8: image metadata + `used_by` question
+  positions, never the bytes).
 
 ## How it fits in
 Routers declare these as request bodies and `response_model`s; FastAPI returns 422 on
@@ -40,6 +41,10 @@ file format and the API share one validator.
   needs `answer ≠ 0`. Required for **both** grading types. Player payload `{value: n}`. The
   checks and their exact messages live in `services/numeric.validate`
   (`docs/design-t7-numeric.md`).
+- **Image keys (T8)** in `config`, any type: `imageId` (prompt), `optionImages` (MC/multi-select
+  only, same length as `options`, entries id or null) and `mapImageId` (`map_pin` only). The
+  validator checks only their **shape** (`services/image_refs.shape_error`); that the images
+  belong to the same game needs the DB and is checked in `question_service`.
 - The allowed question types are a regex **duplicated** in `QuestionCreate.type` and
   `QuestionUpdate.type`. Adding a type means editing both, plus the validator.
 - Key naming is inconsistent by type and must be matched exactly: multiple_choice /

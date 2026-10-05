@@ -5,11 +5,25 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** Backend errors are {message} (BuzzerError) or {detail} (FastAPI/HTTPException). */
+/**
+ * Backend errors are {message} (BuzzerError), a string {detail} (HTTPException), or
+ * a {detail} array (request validation, e.g. an upload without a file). Ported from
+ * the admin app's toError (docs/design-t8-images.md Step 6).
+ */
 async function errorFrom(res: Response): Promise<Error> {
-  const err = (await res.json().catch(() => ({}))) as { message?: string; detail?: unknown };
-  const detail = typeof err.detail === 'string' ? err.detail : undefined;
-  return new Error(err.message ?? detail ?? `HTTP ${res.status}`);
+  const fallback = `HTTP ${res.status}`;
+  const err = (await res.json().catch(() => ({}))) as { message?: unknown; detail?: unknown };
+  if (typeof err.message === 'string') return new Error(err.message);
+  if (typeof err.detail === 'string') return new Error(err.detail);
+  if (Array.isArray(err.detail)) {
+    const parts = err.detail.map((item: { loc?: unknown[]; msg?: unknown }) => {
+      const msg = String(item?.msg ?? 'Invalid value');
+      const field = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : undefined;
+      return field !== undefined ? `${field}: ${msg}` : msg;
+    });
+    if (parts.length > 0) return new Error(parts.join('; '));
+  }
+  return new Error(fallback);
 }
 
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -28,6 +42,14 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 function withBody(method: string, body?: unknown): RequestInit {
   return { method, body: body !== undefined ? JSON.stringify(body) : undefined };
+}
+
+/** Multipart request: no JSON Content-Type, so the browser sets the boundary. */
+async function sendForm<T>(method: 'POST' | 'PUT', path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method, headers: authHeader(), body: form });
+  if (!res.ok) throw await errorFrom(res);
+  const text = await res.text();
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
 /**
@@ -53,5 +75,7 @@ export const api = {
   put: <T>(path: string, body?: unknown) => apiFetch<T>(path, withBody('PUT', body)),
   patch: <T>(path: string, body?: unknown) => apiFetch<T>(path, withBody('PATCH', body)),
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
+  postForm: <T>(path: string, form: FormData) => sendForm<T>('POST', path, form),
+  putForm: <T>(path: string, form: FormData) => sendForm<T>('PUT', path, form),
   download,
 };

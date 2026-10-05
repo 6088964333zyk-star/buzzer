@@ -162,6 +162,10 @@ async def api(
     return r.json() if r.text else None
 
 
+class ServerError(Exception):
+    """The gateway replied with an `error` event; the message is its text."""
+
+
 # ── Simulated player ───────────────────────────────────────────────────────────
 class SimPlayer:
     def __init__(
@@ -208,6 +212,35 @@ class SimPlayer:
 
     async def _wait(self, event: str, timeout: float) -> dict:
         return await asyncio.wait_for(self._queues[event].get(), timeout=timeout)
+
+    def _drain_errors(self) -> None:
+        """Drop stale `error` events so the next reply isn't blamed on them."""
+        q = self._queues["error"]
+        while not q.empty():
+            q.get_nowait()
+
+    async def _wait_or_error(self, event: str, timeout: float) -> dict:
+        """Wait for `event`; raise ServerError if the server sends `error` first.
+
+        The gateway answers a refused request with `error` instead of the
+        expected event (see backend/app/websocket/CLAUDE.md).
+        """
+        ev_task = asyncio.ensure_future(self._queues[event].get())
+        err_task = asyncio.ensure_future(self._queues["error"].get())
+        try:
+            done, _ = await asyncio.wait(
+                {ev_task, err_task},
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        finally:
+            ev_task.cancel()
+            err_task.cancel()
+        if ev_task in done:
+            return ev_task.result()
+        if err_task in done:
+            raise ServerError(err_task.result().get("message", "unknown error"))
+        raise asyncio.TimeoutError
 
     def _json_question(self, question_number: int) -> dict | None:
         """Return the game-JSON question for this 1-indexed question number."""
@@ -332,6 +365,7 @@ class SimPlayer:
         delay = random.uniform(p.min_delay, min(p.max_delay, t_lim * 0.8))
         await asyncio.sleep(delay)
 
+        self._drain_errors()
         await self.sio.emit(
             "submit_answer",
             {
@@ -342,11 +376,13 @@ class SimPlayer:
         )
 
         try:
-            ar = await self._wait("answer_received", timeout=10.0)
+            ar = await self._wait_or_error("answer_received", timeout=10.0)
             pts = ar.get("pointsAwarded", 0)
             ans = self._answer_str(answer)
             tick = OK if ar.get("isCorrect") else SKIP
             print(f"  {tick}  {self._tag()}  {ql:<14}  {ans:<22}  {pts:>5} pts")
+        except ServerError as e:
+            print(f"  {ERR}  {self._tag()}  {ql:<14}  rejected: {e}")
         except asyncio.TimeoutError:
             print(f"  {ERR}  {self._tag()}  {ql:<14}  no answer_received")
 
@@ -372,10 +408,14 @@ class SimPlayer:
             print(f"  {INFO}  {self._tag()}  will join in {delay:.0f}s…")
             await asyncio.sleep(delay)
 
+        self._drain_errors()
         await self.sio.emit("join_room", {"room_code": room_code, "role": "PLAYER"})
 
         try:
-            sync = await self._wait("sync_state", timeout=15.0)
+            sync = await self._wait_or_error("sync_state", timeout=15.0)
+        except ServerError as e:
+            print(f"  {ERR}  {self._tag()}  join refused: {e}")
+            return
         except asyncio.TimeoutError:
             print(f"  {ERR}  {self._tag()}  timed out waiting for sync_state")
             return
@@ -401,8 +441,10 @@ class SimPlayer:
             if q_task in done:
                 try:
                     await self._handle_question(q_task.result())
-                except Exception:
-                    pass
+                except asyncio.TimeoutError:
+                    pass  # no new question for 300 s; keep waiting
+                except Exception as e:
+                    print(f"  {ERR}  {self._tag()}  {type(e).__name__}: {e}")
 
 
 # ── Profile distribution ───────────────────────────────────────────────────────

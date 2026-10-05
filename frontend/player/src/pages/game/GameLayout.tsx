@@ -179,10 +179,10 @@ export default function GameLayout() {
 
   if (error && phase !== 'gameover') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen pt-16 flex items-center justify-center p-4">
         <div className="text-center space-y-4">
-          <p className="text-red-400 text-lg">{error}</p>
-          <button className="text-indigo-400 underline" onClick={() => navigate('/join')}>
+          <p className="text-danger-fg text-lg">{error}</p>
+          <button className="text-accent-fg underline" onClick={() => navigate('/join')}>
             Back to Join
           </button>
         </div>
@@ -195,7 +195,7 @@ export default function GameLayout() {
       value={{ phase, gameStatus, roomCode: code, playerCount, hostDisconnected, currentQuestion, questionLocked, lastAnswerData, answerResult, questionResults, gameOver, emitAnswer }}
     >
       {hostDisconnected && phase !== 'gameover' && (
-        <div className="fixed top-0 inset-x-0 bg-yellow-600/90 text-yellow-100 text-center py-2 text-sm z-50">
+        <div className="fixed top-0 inset-x-0 bg-warning/90 text-on-warning text-center py-2 text-sm z-50">
           Host disconnected — waiting for them to reconnect…
         </div>
       )}

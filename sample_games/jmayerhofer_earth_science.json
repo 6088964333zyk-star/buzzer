@@ -1,0 +1,318 @@
+{
+  "format": "buzzer/game",
+  "version": 1,
+  "game": {
+    "title": "Earth Science & Geography: Our Restless Planet",
+    "description": "A classroom review of Earth's structure, plate tectonics, rocks, and physical geography, with map and estimation questions, plus a few reflection questions to open discussion.",
+    "max_players": 150
+  },
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Which layer of the Earth is liquid?",
+      "config": {
+        "options": [
+          "Inner core",
+          "Outer core",
+          "Mantle",
+          "Continental crust"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ]
+      },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "ACCURACY",
+      "prompt": "Which gas makes up the largest share of Earth's atmosphere?",
+      "config": {
+        "options": [
+          "Oxygen",
+          "Carbon dioxide",
+          "Nitrogen",
+          "Argon"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ]
+      },
+      "time_limit_seconds": 25,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "Most of the world's active volcanoes lie along the Pacific \"Ring of Fire.\"",
+      "config": {},
+      "answer_data": {
+        "answer_points": {
+          "true": 1.0,
+          "false": 0.0
+        }
+      },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "ACCURACY",
+      "prompt": "The Mariana Trench, the deepest part of the ocean, is in the Atlantic Ocean.",
+      "config": {},
+      "answer_data": {
+        "answer_points": {
+          "true": 0.0,
+          "false": 1.0
+        }
+      },
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of these are types of tectonic plate boundaries? Select all that apply.",
+      "config": {
+        "options": [
+          "Convergent",
+          "Divergent",
+          "Transform",
+          "Circular",
+          "Magnetic"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          1.0,
+          1.0,
+          1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "ACCURACY",
+      "prompt": "Which of these rocks are igneous (formed from cooled magma or lava)? Select all that apply.",
+      "config": {
+        "options": [
+          "Granite",
+          "Basalt",
+          "Obsidian",
+          "Limestone",
+          "Marble"
+        ]
+      },
+      "answer_data": {
+        "answer_points": [
+          1.0,
+          1.0,
+          1.0,
+          -1.0,
+          -1.0
+        ]
+      },
+      "time_limit_seconds": 30,
+      "points_value": 3.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "The supercontinent that began breaking apart about 200 million years ago is called ______.",
+      "config": {
+        "maxLength": 30
+      },
+      "answer_data": {
+        "acceptedAnswers": [
+          "Pangaea",
+          "Pangea"
+        ],
+        "answerPoints": [
+          1.0,
+          1.0
+        ],
+        "editDistance": 1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "ACCURACY",
+      "prompt": "The boundary between Earth's crust and mantle is often called the ______ (short name).",
+      "config": {
+        "maxLength": 30
+      },
+      "answer_data": {
+        "acceptedAnswers": [
+          "Moho",
+          "Mohorovicic",
+          "Mohorovičić"
+        ],
+        "answerPoints": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "editDistance": 1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "How tall is Mount Everest, in meters above sea level?",
+      "config": {
+        "unit": "m"
+      },
+      "answer_data": {
+        "answer": 8849,
+        "toleranceMode": "percent",
+        "fullTolerance": 1,
+        "zeroTolerance": 10
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "numeric",
+      "grading_type": "ACCURACY",
+      "prompt": "Roughly what percentage of Earth's surface is covered by water?",
+      "config": {
+        "unit": "%"
+      },
+      "answer_data": {
+        "answer": 71,
+        "toleranceMode": "absolute",
+        "fullTolerance": 3,
+        "zeroTolerance": 15
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is Mount Kilimanjaro, Africa's highest peak?",
+      "config": {
+        "aspectRatio": 2
+      },
+      "answer_data": {
+        "target": {
+          "x": 0.6038,
+          "y": 0.5171
+        },
+        "fullRadius": 0.015,
+        "zeroRadius": 0.1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is Iceland, which sits right on the Mid-Atlantic Ridge?",
+      "config": {
+        "aspectRatio": 2
+      },
+      "answer_data": {
+        "target": {
+          "x": 0.4472,
+          "y": 0.1391
+        },
+        "fullRadius": 0.02,
+        "zeroRadius": 0.1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "map_pin",
+      "grading_type": "ACCURACY",
+      "prompt": "Pin it on the map: where is the Mariana Trench?",
+      "config": {
+        "aspectRatio": 2
+      },
+      "answer_data": {
+        "target": {
+          "x": 0.895,
+          "y": 0.4369
+        },
+        "fullRadius": 0.015,
+        "zeroRadius": 0.1
+      },
+      "time_limit_seconds": 30,
+      "points_value": 1.0
+    },
+    {
+      "type": "multiple_choice",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Which natural hazard would you most like to study next?",
+      "config": {
+        "options": [
+          "Earthquakes",
+          "Volcanoes",
+          "Hurricanes",
+          "Tsunamis"
+        ]
+      },
+      "answer_data": {},
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "true_false",
+      "grading_type": "COMPLETENESS",
+      "prompt": "I have felt an earthquake.",
+      "config": {},
+      "answer_data": {},
+      "time_limit_seconds": 15,
+      "points_value": 1.0
+    },
+    {
+      "type": "multi_select",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Which of these landforms have you seen in person? Select all that apply.",
+      "config": {
+        "options": [
+          "Mountain",
+          "Volcano",
+          "Glacier",
+          "Canyon",
+          "Desert"
+        ]
+      },
+      "answer_data": {},
+      "time_limit_seconds": 20,
+      "points_value": 1.0
+    },
+    {
+      "type": "fill_in_the_blank",
+      "grading_type": "COMPLETENESS",
+      "prompt": "Name one place on Earth you would love to study in the field, and why.",
+      "config": {
+        "maxLength": 120
+      },
+      "answer_data": {},
+      "time_limit_seconds": 45,
+      "points_value": 1.0
+    }
+  ]
+}

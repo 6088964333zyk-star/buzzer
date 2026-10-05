@@ -52,7 +52,7 @@ export interface QuestionPayload {
   type: QuestionType;
   gradingType: 'ACCURACY' | 'COMPLETENESS';
   prompt: string;
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
+  config: QuestionConfig;
   timeLimitSeconds: number;
   pointsValue: number;
   editDistance?: number;
@@ -99,13 +99,27 @@ export interface HostResultsPayload {
   totalPlayers: number;
 }
 
+/** Question config as sent to clients. T8 image keys: docs/design-t8-images.md. */
+export interface QuestionConfig {
+  options?: string[];
+  maxLength?: number;
+  aspectRatio?: number;
+  unit?: string;
+  /** Prompt image (big screen only). */
+  imageId?: string | null;
+  /** One entry per option (MC / multi-select). */
+  optionImages?: (string | null)[];
+  /** map_pin background; absent = built-in world map. */
+  mapImageId?: string | null;
+}
+
 export interface HostQuestionSummaryItem {
   questionId: number;
   questionNumber: number;
   prompt: string;
   type: QuestionType;
   gradingType: 'ACCURACY' | 'COMPLETENESS';
-  config: { options?: string[]; maxLength?: number; aspectRatio?: number; unit?: string };
+  config: QuestionConfig;
   pointsValue: number;
   answerReveal: AnswerReveal;
   answerDistribution: Record<string, number>;

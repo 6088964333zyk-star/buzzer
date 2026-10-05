@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import { TimerBar } from '../../components/ui/TimerBar';
+import { imageUrl } from '../../lib/images';
 
 export default function QuestionPage() {
   const { currentQuestion, answeredCount, playerCount, allAnswered, answerPhaseEnded, questionLocked, lockedTimerSeconds, autoAdvance, emitAdvance, emitLockQuestion } = useGame();
@@ -15,7 +16,7 @@ export default function QuestionPage() {
   if (!currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-slate-400">Loading question…</p>
+        <p className="text-fg-subtle">Loading question…</p>
       </div>
     );
   }
@@ -43,20 +44,20 @@ export default function QuestionPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 gap-8">
-      <div className="flex items-center gap-3 text-sm uppercase tracking-wider">
-        <span className="text-slate-400">
+      <div className="flex items-center gap-3 text-lg uppercase tracking-wider">
+        <span className="text-fg-subtle">
           Question {currentQuestion.questionNumber} of {currentQuestion.totalQuestions}
         </span>
-        <span className="text-slate-600">·</span>
-        <span className="text-slate-400">{typeLabel[currentQuestion.type] ?? currentQuestion.type}</span>
-        <span className="text-slate-600">·</span>
-        <span className={currentQuestion.gradingType === 'COMPLETENESS' ? 'text-amber-400' : 'text-indigo-400'}>
+        <span className="text-fg-subtle">·</span>
+        <span className="text-fg-subtle">{typeLabel[currentQuestion.type] ?? currentQuestion.type}</span>
+        <span className="text-fg-subtle">·</span>
+        <span className={currentQuestion.gradingType === 'COMPLETENESS' ? 'text-warning-fg' : 'text-accent-fg'}>
           {currentQuestion.gradingType === 'COMPLETENESS' ? 'Participation' : 'Accuracy'}
         </span>
         {currentQuestion.type === 'fill_in_the_blank' && currentQuestion.gradingType === 'ACCURACY' && (
           <>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-400 normal-case">
+            <span className="text-fg-subtle">·</span>
+            <span className="text-fg-subtle normal-case">
               {editDistanceLabel(currentQuestion.editDistance ?? 0)}
             </span>
           </>
@@ -72,24 +73,33 @@ export default function QuestionPage() {
         />
       </div>
 
+      {/* The prompt image follows the prompt text in every state (T8 Goldfish 12). */}
+      {!questionLocked && currentQuestion.config.imageId && (
+        <img
+          src={imageUrl(currentQuestion.config.imageId)}
+          alt=""
+          className="max-h-[40vh] max-w-full object-contain rounded-xl"
+        />
+      )}
+
       {!questionLocked && (
-        <h2 className="text-4xl font-bold text-slate-100 text-center max-w-3xl leading-tight">
+        <h2 className="text-4xl font-bold text-fg text-center max-w-3xl leading-tight">
           {currentQuestion.prompt}
         </h2>
       )}
 
       {/* The map itself stays off the big screen so it can't hint the answer. */}
       {!questionLocked && currentQuestion.type === 'map_pin' && (
-        <p className="text-indigo-300 text-2xl">📍 Tap the map on your phone</p>
+        <p className="text-accent-fg text-2xl">📍 Tap the map on your phone</p>
       )}
       {!questionLocked && currentQuestion.type === 'numeric' && (
-        <p className="text-indigo-300 text-2xl">🔢 Type your estimate on your phone</p>
+        <p className="text-accent-fg text-2xl">🔢 Type your estimate on your phone</p>
       )}
 
-      <div className="text-slate-300 text-xl">
+      <div className="text-fg-muted text-xl">
         {answeredCount} / {playerCount} answered
-        {allAnswered && <span className="ml-3 text-green-400 font-semibold">All answered!</span>}
-        {questionLocked && <span className="ml-3 text-amber-400 font-semibold">· Answers locked</span>}
+        {allAnswered && <span className="ml-3 text-success-fg font-semibold">All answered!</span>}
+        {questionLocked && <span className="ml-3 text-warning-fg font-semibold">· Answers locked</span>}
       </div>
 
       <div className="flex gap-4">
@@ -97,7 +107,7 @@ export default function QuestionPage() {
           size="lg"
           variant="outline"
           onClick={emitLockQuestion}
-          className={`px-10 ${questionLocked ? 'border-amber-500 text-amber-400 hover:bg-amber-500/10' : ''}`}
+          className={`px-10 ${questionLocked ? 'border-warning text-warning-fg hover:brightness-110' : ''}`}
         >
           {questionLocked ? 'Unlock Question' : 'Lock Question'}
         </Button>

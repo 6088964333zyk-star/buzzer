@@ -664,7 +664,9 @@ async def on_rejoin_room(sid: str, data: dict) -> None:
     """
     data = {"room_code": str}
     Re-establishes room membership using the JWT already validated at connect time.
-    Role is inferred from the session (host_user_id comparison).
+    Role is inferred: the session's creator is the host; an ADMIN is the host only
+    if they aren't a player in this session (before, an admin who joined as a
+    player was silently promoted to host on reconnect).
     """
     session_data = await sio.get_session(sid)
     user_id: str = session_data.get("user_id", "")
@@ -689,7 +691,10 @@ async def on_rejoin_room(sid: str, data: dict) -> None:
             await _emit_error(sid, str(exc))
             return
 
-        is_host = user.id == session.host_user_id or user.role == "ADMIN"
+        is_player = await state.get_player(redis, session.id, user.id) is not None
+        is_host = user.id == session.host_user_id or (
+            user.role == "ADMIN" and not is_player
+        )
 
         if is_host:
             task = _abandon_tasks.pop(session.id, None)
@@ -745,7 +750,11 @@ async def on_rejoin_room(sid: str, data: dict) -> None:
         else:
             player_data = await state.get_player(redis, session.id, user.id)
             if not player_data:
-                # Redis was flushed — re-authorise and re-add the player
+                # Redis was flushed — re-authorise and re-add the player, with
+                # the same status rule as join_room.
+                if session.status not in ("LOBBY", "IN_PROGRESS"):
+                    await _emit_error(sid, "This game is not accepting players")
+                    return
                 try:
                     display_name = await game_service.authorise_player(
                         db, user, session
