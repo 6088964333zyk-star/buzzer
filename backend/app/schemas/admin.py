@@ -92,8 +92,9 @@ class GameCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str = Field("", max_length=5000)
     max_players: int = Field(150, ge=1, le=500)
-    # Optional for backward compatibility; NULL games are admin-only (design D1).
-    course_id: int | None = Field(None, gt=0)
+    # Required: every new game belongs to a course (T4). NULL survives only on
+    # legacy rows from before migration 004, which stay admin-only (design D1).
+    course_id: int = Field(..., gt=0)
 
 
 class GameUpdate(BaseModel):

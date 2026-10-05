@@ -26,9 +26,9 @@ management. Each page is a self-contained route component that loads its own dat
   a role in); it doesn't include roster-based play access, and says so.
 - `GuestsPage.tsx` — List guest accounts, merge a guest's scores into a real netid, delete guests.
 - `GamesPage.tsx` — List, create, edit, delete games. Create requires a course; import needs a
-  course chosen first, then imports (`postForm`) and assigns it with `PUT {course_id}` — if that
-  second call fails, the game stays "No course" with an inline Assign control. With no courses,
-  create/import are disabled.
+  course chosen first and sends it as the `course_id` form field with the file (`postForm`), so
+  the game is created in that course in one request. Legacy "No course" rows get an inline
+  Assign control. With no courses, create/import are disabled.
 - `QuestionEditorPage.tsx` — Largest page (~790 lines). Question list with up/down reorder,
   inline create/edit form (`QuestionForm`), delete, and "Export JSON". Per-type helpers
   convert between the form and the API shape: `questionToForm`, `formToPayload`, and

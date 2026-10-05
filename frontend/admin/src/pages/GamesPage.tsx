@@ -117,16 +117,9 @@ export default function GamesPage() {
     try {
       const form = new FormData();
       form.append('file', file);
+      // The chosen course always wins over any course_id inside the file (design A6).
+      form.append('course_id', importCourseId);
       const result = await api.postForm<{ game_id: number }>('/admin/games/import', form);
-      // Import has no course parameter; assign it with the set-once PUT. The chosen
-      // course always wins over any course_id inside the file (design A6).
-      try {
-        await api.put(`/admin/games/${result.game_id}`, { course_id: Number(importCourseId) });
-      } catch (err) {
-        setError(`Imported, but assigning the course failed: ${err instanceof Error ? err.message : 'unknown error'}`);
-        await load();
-        return;
-      }
       setImportCourseId('');
       await load();
       navigate(`/games/${result.game_id}/questions`);
