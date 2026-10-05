@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
+import ThemeToggle from '../components/ThemeToggle';
 import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 
@@ -29,6 +30,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <ThemeToggle variant="floating" />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <h1 className="text-2xl font-bold text-slate-100">Admin Login</h1>

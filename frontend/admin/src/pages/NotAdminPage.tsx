@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import ThemeToggle from '../components/ThemeToggle';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 
 /** Shown by RequireAdmin when a valid token belongs to a non-admin (USER or GUEST). */
@@ -13,6 +14,7 @@ export default function NotAdminPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <ThemeToggle variant="floating" />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <h1 className="text-2xl font-bold text-slate-100">Admins only</h1>

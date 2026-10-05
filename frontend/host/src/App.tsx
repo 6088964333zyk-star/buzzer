@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import ThemeToggle from './components/ThemeToggle';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import GameLayout from './pages/game/GameLayout';
@@ -19,6 +20,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <ThemeToggle />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/home" element={<RequireAuth><HomePage /></RequireAuth>} />

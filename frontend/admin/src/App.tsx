@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useNavigate, NavLink } from 'react-router-dom';
 import { BookOpen, Users, Gamepad2, UserX, LogOut, History, ExternalLink } from 'lucide-react';
 import { getTokenClaims } from './lib/auth';
+import ThemeToggle from './components/ThemeToggle';
 import LoginPage from './pages/LoginPage';
 import CoursesPage from './pages/CoursesPage';
 import CourseDetailPage from './pages/CourseDetailPage';
@@ -71,7 +72,8 @@ function AdminLayout() {
             <ExternalLink size={16} /> Open player app
           </a>
         </nav>
-        <div className="p-3 border-t border-slate-700">
+        <div className="p-3 border-t border-slate-700 space-y-1">
+          <ThemeToggle variant="sidebar" />
           <button
             onClick={logout}
             className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 w-full transition-colors"
