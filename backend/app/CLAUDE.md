@@ -58,9 +58,9 @@ call the REST API for setup and use Socket.IO for play.
   `answer_data`.
 - **Images (T8) have no foothold yet:** no upload or image serving, and prompts are
   `bleach`-sanitized down to `b`/`i`/`br`/`u`, so `<img>` tags are stripped.
-- **Redis `session:*` keys are never expired or cleaned after a normal game end** (confirmed
-  by reading, not yet observed live) — see `services/`. Question update/delete integrity is
-  handled by `services/question_service` (T4).
+- **Redis `session:*` keys expire:** 24 h from creation, shortened to the room's 90 min at
+  game over — see `services/`. Question update/delete integrity is handled by
+  `services/question_service` (T4).
 - **Known access-control soft spots** (see `routers/` and `websocket/`): host `merge-guest`
   can touch any guest; `oauth2-callback` trusts a header; `rejoin_room` promotes any ADMIN to
   host.

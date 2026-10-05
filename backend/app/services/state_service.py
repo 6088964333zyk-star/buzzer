@@ -8,6 +8,11 @@ Key namespaces:
   session:{id}:question          → current question state JSON
   session:{id}:answered:{qid}    → Set of user_ids who answered question qid
   session:{id}:dist:{qid}        → Hash of answer_key → count (e.g. "0"→5, "true"→8)
+
+Every session:{id}:* key gets SESSION_TTL when it is created, so keys of lobbies
+that are never started (or games deleted mid-play) still go away. Later updates
+keep the key's TTL rather than extending it, and complete_game shortens all of
+them to ROOM_TTL via expire_session_state.
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ from ..models.game import Question
 logger = structlog.get_logger()
 
 ROOM_TTL = 90 * 60  # 90 minutes in seconds
+SESSION_TTL = 24 * 60 * 60  # safety net for session:{id}:* keys
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +61,12 @@ def _answered_key(session_id: str, question_id: int) -> str:
 
 def _dist_key(session_id: str, question_id: int) -> str:
     return f"session:{session_id}:dist:{question_id}"
+
+
+async def _set_ttl_once(redis: Redis, key: str) -> None:
+    """Give a set/hash key SESSION_TTL only if it has none (EXPIRE NX), so a
+    TTL shortened by expire_session_state is not pushed back out."""
+    await redis.expire(key, SESSION_TTL, nx=True)
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +99,12 @@ async def delete_room_state(redis: Redis, code: str, session_id: str) -> None:
         await redis.delete(*all_keys)
 
 
+async def expire_session_state(redis: Redis, session_id: str, seconds: int) -> None:
+    """Set every session:{id}:* key to expire in `seconds` (e.g. after game over)."""
+    async for key in redis.scan_iter(match=f"session:{session_id}:*"):
+        await redis.expire(key, seconds)
+
+
 # ---------------------------------------------------------------------------
 # Player management
 # ---------------------------------------------------------------------------
@@ -108,7 +126,10 @@ async def add_player(
         "is_connected": True,
     }
     await redis.sadd(_players_key(session_id), user_id)
-    await redis.set(_player_key(session_id, user_id), json.dumps(player_data))
+    await _set_ttl_once(redis, _players_key(session_id))
+    await redis.set(
+        _player_key(session_id, user_id), json.dumps(player_data), ex=SESSION_TTL
+    )
 
 
 async def update_player_score(
@@ -120,7 +141,7 @@ async def update_player_score(
         return 0
     data = json.loads(raw)
     data["score"] = data.get("score", 0) + delta
-    await redis.set(_player_key(session_id, user_id), json.dumps(data))
+    await redis.set(_player_key(session_id, user_id), json.dumps(data), keepttl=True)
     return data["score"]
 
 
@@ -131,7 +152,9 @@ async def set_player_connected(
     if raw:
         data = json.loads(raw)
         data["is_connected"] = connected
-        await redis.set(_player_key(session_id, user_id), json.dumps(data))
+        await redis.set(
+            _player_key(session_id, user_id), json.dumps(data), keepttl=True
+        )
 
 
 async def remove_player(redis: Redis, session_id: str, user_id: str) -> None:
@@ -179,7 +202,7 @@ async def set_current_question(
         "question_number": question_number,
         "total_questions": total_questions,
     }
-    await redis.set(_question_key(session_id), json.dumps(data))
+    await redis.set(_question_key(session_id), json.dumps(data), ex=SESSION_TTL)
 
 
 async def get_current_question(redis: Redis, session_id: str) -> dict | None:
@@ -196,6 +219,7 @@ async def mark_answered(
     redis: Redis, session_id: str, question_id: int, user_id: str
 ) -> None:
     await redis.sadd(_answered_key(session_id, question_id), user_id)
+    await _set_ttl_once(redis, _answered_key(session_id, question_id))
 
 
 async def has_answered(
@@ -213,6 +237,7 @@ async def increment_answer_dist(
 ) -> None:
     """Increment the per-option counter for a question's answer distribution."""
     await redis.hincrby(_dist_key(session_id, question_id), answer_key, 1)
+    await _set_ttl_once(redis, _dist_key(session_id, question_id))
 
 
 async def get_answer_dist(

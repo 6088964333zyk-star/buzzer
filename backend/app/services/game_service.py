@@ -245,7 +245,9 @@ async def complete_game(db: AsyncSession, redis: Redis, session: GameSession) ->
     # Commit so player join attempts racing with game_over see COMPLETED.
     await db.commit()
     logger.info("game_completed", session_id=session.id)
-    # Keep Redis state 10 more minutes for reconnection, then let it expire naturally
+    # Keep the live state for reconnects and the results screens as long as the
+    # room key (the gateway re-saves it with ROOM_TTL right after), then expire.
+    await state.expire_session_state(redis, session.id, state.ROOM_TTL)
 
 
 async def abandon_game(db: AsyncSession, redis: Redis, session: GameSession) -> None:
