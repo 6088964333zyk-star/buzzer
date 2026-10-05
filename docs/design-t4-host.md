@@ -78,7 +78,9 @@ checks.
   restrict). NULL is allowed only so that existing games survive the migration.
 - **Creation.** Games created through the host API must carry a course the caller hosts. Games
   created through the admin API *should* carry one; it's optional there for backward
-  compatibility (see *Coordination*).
+  compatibility (see *Coordination*). *(Amended 2026-10-05, `fix/admin-game-course-required`:
+  the admin API now requires a course on create and on JSON import. NULL remains only on legacy
+  rows the migration couldn't backfill.)*
 - **Room creation rule** (in `game_service.create_room`):
   - **The game has a course:** `body.course_id` must equal `game.course_id`. This applies to
     ADMIN too. Otherwise 403: *"This game belongs to a different course."*

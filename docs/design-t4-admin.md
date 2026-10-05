@@ -242,25 +242,22 @@ D4/D5/D7/D8 messages in `QuestionEditorPage`, `RosterPage`, and `GamesPage` with
 - **No courses yet:** if `GET /api/admin/courses` returns `[]`, the create and import controls are
   disabled and the page shows "Create a course first" linking to `/courses`.
 - **Create form:** adds a required "Course" select (from `GET /api/admin/courses`); the POST body
-  includes `course_id`. The backend still allows omitting it (D1 backward compatibility); the
-  admin UI no longer does.
+  includes `course_id`. *(Amended 2026-10-05, `fix/admin-game-course-required`: the backend
+  now requires it too: `GameCreate.course_id` is required, so a missing or `null` course is a
+  422 and an unknown one a 404. Only legacy rows from migration 004 can have no course.)*
 - **List:** a "Course" column showing the course name, or a "No course" badge.
 - **Assign course:** rows with no course get an inline course select + "Assign" button, same
   confirm and `PUT` as A4.
 - **Edit form:** title, description, max players as today. The course is shown read-only; it is
   not sent in the update body.
 - **Import JSON:** the import control gets the same required course select (choose course, then
-  file). After `POST /api/admin/games/import` returns `{game_id}`, the page sends
-  `PUT /api/admin/games/{game_id}` `{course_id}`. If that second call fails, the error banner
-  says "Imported, but assigning the course failed: <message>" and the game appears in the list
-  as "No course" with the assign control, so nothing is lost.
-  - **Navigation:** on full success, navigate to `/games/{game_id}/questions` as today. If the
-    assign fails, stay on `GamesPage` (so the banner is visible) and reload the list.
-  - **The select always wins:** a `course_id` inside the JSON file is ignored by
-    `import_game` today; the spec doesn't change that.
-  - A `PUT` body of only `{course_id}` leaves title, description and max players unchanged
-    (`update_game` only applies non-null fields).
-  - (Adding `course_id` to the import endpoint itself was rejected; see §3.)
+  file). *(Amended 2026-10-05, `fix/admin-game-course-required`: this was import-then-assign, a
+  second `PUT {course_id}` that could fail and leave a course-less game. Now the page sends the
+  course as a required `course_id` form field on `POST /api/admin/games/import`, and the game is
+  created with it in the same transaction: missing → 422, unknown course → 404, nothing kept.)*
+  - **Navigation:** on success, navigate to `/games/{game_id}/questions` as today.
+  - **The select always wins:** a `course_id` inside the JSON file is overridden by the form
+    field.
 
 **A7 — `RequireAdmin` checks the role.**
 
@@ -307,7 +304,7 @@ course" → `/courses/:courseId`, since the course page is now its only entry po
 | 2 | **Hide game access entirely** (delete the per-game UI, say nothing). | Matches the backend model, but the spec names game access as an admin task; a reader checking for it would find nothing. A4 keeps the concept visible and explains it. |
 | 3 | **Keep per-game grants meaningful** (let `UserGameAccess` grant host access again). | Contradicts `feature/t4-host` D1 ("a game is only accessible to hosts and players of that course") and reintroduces two access paths to audit. |
 | 4 | **Remove admin's Games/Questions/Sessions pages and send admins to the host app.** | Course-less legacy games aren't reachable from host pages (they're scoped by course), game delete and JSON import/export are admin-only, and it would conflict with T7's admin editor changes. Linking out (A1) gives the "host actions" path without removing anything. |
-| 5 | **Add `course_id` to `POST /admin/games/import`.** | Cleaner single request, but it changes a multipart endpoint `feature/t4-host` didn't touch and needs its own validation/tests. Import-then-assign (A6) reuses the existing set-once `PUT` and fails safe. Revisit if import is used heavily. |
+| 5 | **Add `course_id` to `POST /admin/games/import`.** | Cleaner single request, but it changes a multipart endpoint `feature/t4-host` didn't touch and needs its own validation/tests. Import-then-assign (A6) reuses the existing set-once `PUT` and fails safe. Revisit if import is used heavily. *(Revisited 2026-10-05 and adopted: T4 requires a course at creation time, and the grader flagged the optional `course_id`. See A6.)* |
 | 6 | **Build the access list from per-user GETs** instead of A3. | N+1 requests on every course page load. |
 | 7 | **Delete the game-access endpoints.** | Extra churn in `admin.py` right after `feature/t4-host`'s refactor; nothing calls them after this change. Note as cleanup. |
 | 8 | **Shared frontend package for `api.ts`/auth helpers.** | Same reason as `design-t4-host.md` D6: the three apps are separate Vite builds; out of scope for T4. A5 copies the host app's logic. |
@@ -472,8 +469,7 @@ from another test module. Delete created users at module teardown with
   types must be added to both.
 - **Client-side role check is decoded, not verified.** Editing the token in devtools shows the
   admin UI, but every request still fails `require_admin`. This is a UX guard only.
-- **Import-then-assign isn't atomic.** A failed second call leaves a course-less game, which is
-  visible and fixable from the same page.
+- ~~**Import-then-assign isn't atomic.**~~ Fixed 2026-10-05: import takes the course itself (A6).
 - **Merge order.** This branch includes `feature/t4-host`. It must merge after it; if
   `feature/t4-host` changes before merging, rebase this branch onto it.
   `feature/t7-map-question` edits admin `QuestionEditorPage.tsx` and adds new admin files (this

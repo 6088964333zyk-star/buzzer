@@ -28,8 +28,9 @@ FastAPI REST endpoints, all mounted under `/api` in `main.py`. Real-time game tr
 - `admin.py` — `/api/admin/*`, **every route is `require_admin`**: course list/create/get/
   update (**no course delete**), and `courses/{id}/access` (who has HOST/PLAYER on a course,
   hosts first); roster CSV upload, JSON row import, per-entry patch (no
-  roster-entry delete — deactivate instead); game CRUD; question CRUD + reorder; game JSON
-  export/import (version 2 embeds images as base64; 1 still imports); the same four image
+  roster-entry delete — deactivate instead); game CRUD (create requires `course_id`); question
+  CRUD + reorder; game JSON export/import (import requires a `course_id` form field, which
+  overrides any in the file; version 2 embeds images as base64; 1 still imports); the same four image
   routes as host (T8); local user CRUD; grant/revoke course access (HOST/PLAYER) and game access;
   guest merge; session list, Canvas/raw CSV export, and HTML `report`.
 - `images.py` — public `GET /api/images/{id}` (T8): the bytes, no auth, `ETag` = sha256,
