@@ -37,8 +37,10 @@ after the player has a token. Pages read `useGame()` only; the one outbound even
 ## Gotchas
 - **The player never sees the question prompt while answering.** The prompt is shown on the
   host's big screen; the phone shows only the answer controls (and option text). The prompt
-  first appears on `GameOverPage`. Matters for T8: a prompt image belongs on the host screen,
-  option images on the phone.
+  first appears on `GameOverPage`. T8 follows this: the prompt image (`config.imageId`) is
+  never shown on the phone; option images are (`QuestionPage` switches MC and multi-select to
+  a 2-column tile grid, image capped at 20vh, when any `config.optionImages` entry is set).
+  `map_pin` uses `config.mapImageId` as its map on the question and results screens.
 - **Question-type logic is spread across files.** `QuestionPage` (input UI + answer shape),
   `ResultsPage` (`describeAnswer`), and `GameOverPage` (`describePlayerAnswer`, reveal text)
   each switch on `type`. A new type (T7) needs all three, and its `answer_data` shape must match

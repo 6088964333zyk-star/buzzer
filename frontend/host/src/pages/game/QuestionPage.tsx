@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useGame } from './GameLayout';
 import { Button } from '../../components/ui/button';
 import { TimerBar } from '../../components/ui/TimerBar';
+import { imageUrl } from '../../lib/images';
 
 export default function QuestionPage() {
   const { currentQuestion, answeredCount, playerCount, allAnswered, answerPhaseEnded, questionLocked, lockedTimerSeconds, autoAdvance, emitAdvance, emitLockQuestion } = useGame();
@@ -71,6 +72,15 @@ export default function QuestionPage() {
           paused={questionLocked}
         />
       </div>
+
+      {/* The prompt image follows the prompt text in every state (T8 Goldfish 12). */}
+      {!questionLocked && currentQuestion.config.imageId && (
+        <img
+          src={imageUrl(currentQuestion.config.imageId)}
+          alt=""
+          className="max-h-[40vh] max-w-full object-contain rounded-xl"
+        />
+      )}
 
       {!questionLocked && (
         <h2 className="text-4xl font-bold text-slate-100 text-center max-w-3xl leading-tight">

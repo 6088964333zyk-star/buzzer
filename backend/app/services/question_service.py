@@ -6,6 +6,9 @@ docs/design-t4-host.md:
   D7 — an update is merged onto the stored question and re-validated with the
        same ``QuestionCreate`` rules as create (422 on failure).
   D8 — no edits while the game has a live session (409).
+And from docs/design-t8-images.md: referenced images must belong to the game
+(422), map_pin aspectRatio is filled from its map image, and an answered
+map_pin can't change its map (409).
 """
 
 from __future__ import annotations
@@ -20,7 +23,9 @@ from ..common.exceptions import ConflictError, NotFoundError, UnprocessableError
 from ..models.game import Game, Question
 from ..models.session import GameSession, SessionScore
 from ..schemas.admin import QuestionCreate, QuestionUpdate
+from . import image_service
 from . import state_service as state
+from .image_refs import map_image_id
 
 PROMPT_TAGS = ["b", "i", "br", "u"]
 
@@ -41,7 +46,7 @@ def _clean_prompt(prompt: str) -> str:
     return bleach.clean(prompt, tags=PROMPT_TAGS, attributes={}, strip=True)
 
 
-async def _assert_no_live_session(db: AsyncSession, redis: Redis, game_id: int) -> None:
+async def assert_no_live_session(db: AsyncSession, redis: Redis, game_id: int) -> None:
     """409 if a session of this game is IN_PROGRESS *and* its room is still in Redis.
 
     MySQL alone isn't enough: a backend restart loses the in-process abandon
@@ -59,7 +64,7 @@ async def _assert_no_live_session(db: AsyncSession, redis: Redis, game_id: int) 
             raise ConflictError("This game has a session in progress")
 
 
-async def _answered_session_count(db: AsyncSession, question_id: int) -> int:
+async def answered_session_count(db: AsyncSession, question_id: int) -> int:
     result = await db.execute(
         select(func.count(SessionScore.session_id.distinct())).where(
             SessionScore.question_id == question_id
@@ -81,7 +86,7 @@ async def _get_question(db: AsyncSession, game: Game, question_id: int) -> Quest
 async def create(
     db: AsyncSession, redis: Redis, game: Game, body: QuestionCreate
 ) -> Question:
-    await _assert_no_live_session(db, redis, game.id)
+    await assert_no_live_session(db, redis, game.id)
 
     if body.order_index is None:
         result = await db.execute(
@@ -95,12 +100,15 @@ async def create(
     else:
         order_index = body.order_index
 
+    await image_service.assert_refs_in_game(db, game.id, body.type, body.config)
+    config = await image_service.fill_map_aspect(db, body.type, body.config)
+
     question = Question(
         game_id=game.id,
         type=body.type,
         grading_type=body.grading_type,
         prompt=_clean_prompt(body.prompt),
-        config=body.config,
+        config=config,
         answer_data=body.answer_data,
         time_limit_seconds=body.time_limit_seconds,
         points_value=body.points_value,
@@ -120,12 +128,12 @@ async def update(
     body: QuestionUpdate,
 ) -> Question:
     question = await _get_question(db, game, question_id)
-    await _assert_no_live_session(db, redis, game.id)
+    await assert_no_live_session(db, redis, game.id)
 
     if (
         body.type is not None
         and body.type != question.type
-        and await _answered_session_count(db, question.id) > 0
+        and await answered_session_count(db, question.id) > 0
     ):
         raise ConflictError(
             "Cannot change the type of a question that has already been answered"
@@ -142,6 +150,22 @@ async def update(
         # Not a request-parsing error, so FastAPI wouldn't turn it into a 422.
         raise UnprocessableError(exc.errors()[0]["msg"]) from exc
 
+    await image_service.assert_refs_in_game(
+        db, game.id, validated.type, validated.config
+    )
+    if (
+        map_image_id(validated.type, validated.config)
+        != map_image_id(question.type, question.config)
+        and question.type == "map_pin"
+        and await answered_session_count(db, question.id)
+    ):
+        raise ConflictError(
+            "Cannot change the map of a question that has already been answered"
+        )
+    validated.config = await image_service.fill_map_aspect(
+        db, validated.type, validated.config
+    )
+
     for field in _MERGE_FIELDS:
         setattr(question, field, getattr(validated, field))
     question.prompt = _clean_prompt(validated.prompt)
@@ -154,9 +178,9 @@ async def update(
 
 async def delete(db: AsyncSession, redis: Redis, game: Game, question_id: int) -> None:
     question = await _get_question(db, game, question_id)
-    await _assert_no_live_session(db, redis, game.id)
+    await assert_no_live_session(db, redis, game.id)
 
-    sessions = await _answered_session_count(db, question.id)
+    sessions = await answered_session_count(db, question.id)
     if sessions:
         raise ConflictError(
             f"This question has been answered in {sessions} session(s); "
@@ -166,7 +190,7 @@ async def delete(db: AsyncSession, redis: Redis, game: Game, question_id: int) -
 
 
 async def reorder(db: AsyncSession, redis: Redis, game: Game, order: list[int]) -> None:
-    await _assert_no_live_session(db, redis, game.id)
+    await assert_no_live_session(db, redis, game.id)
 
     result = await db.execute(select(Question).where(Question.game_id == game.id))
     questions = {q.id: q for q in result.scalars().all()}

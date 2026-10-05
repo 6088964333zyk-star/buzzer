@@ -1,8 +1,8 @@
 # frontend/host/src/components/
 
 ## Purpose
-Reusable presentational components for the host app. Currently only a small shadcn-style
-primitive set under `ui/`; there are no feature-level components yet.
+Reusable components for the host app: a small shadcn-style primitive set under `ui/`, plus
+the feature components for map questions (T7), numeric results (T7) and images (T8).
 
 ## Contents
 - `ui/button.tsx` — `Button` with `variant` (`default` | `outline` | `ghost` | `destructive`)
@@ -14,9 +14,22 @@ primitive set under `ui/`; there are no feature-level components yet.
 - `NumericBuckets.tsx` — the `numeric` (T7) direction-of-error chart: five bars from "Way under"
   to "Way over", from the bucket keys in the answer distribution, plus the answer and "N of M
   within full credit". `size="large"` on results, `"card"` on game over.
+- `MapCanvas.tsx` — the `map_pin` (T7) `<canvas>`: draws the map, pins, the target's radius
+  circles and answer dots; taps → image fractions `{x, y}`. Sized from `aspectRatio` (never the
+  image's natural size), height capped at 70% of the window. `imageUrl` swaps the built-in
+  `world-map.svg` for an uploaded image (T8); images are cached per URL for the whole page.
+  **Identical copies in host, player and admin.**
+- `MapPicker.tsx` — editor control for `map_pin`: `MapCanvas` + target click + the two radius
+  inputs; `imageUrl`/`aspectRatio` props for a custom map (T8). Identical in host and admin.
+- `ImageLibrary.tsx` — a game's images (T8, `docs/design-t8-images.md`): upload (multi-file),
+  thumbnail, size, "Used by Q…", **Replace** and **Delete** (the server's 409 messages are
+  shown). `prefix` is `/host` or `/admin`. Identical in host and admin.
+- `ImagePicker.tsx` — "choose one image from the library, or none" popover, used for the prompt
+  image, each option and the map image. Identical in host and admin.
 
 ## How it fits in
-Used by `../pages/` (Home, Login) and `../pages/game/` (Lobby, Question, Results, GameOver).
+Used by `../pages/` (Home, Login), `../pages/game/` (Lobby, Question, Results, GameOver) and
+`../pages/manage/QuestionEditorPage.tsx` (MapPicker, ImageLibrary, ImagePicker).
 All class merging goes through `../lib/utils.ts` (`cn`).
 
 ## Gotchas

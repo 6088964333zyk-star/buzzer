@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import type { AnswerReveal, HostQuestionSummaryItem } from '../../types/game';
 import { MapCanvas } from '../../components/MapCanvas';
 import { distributionDots } from '../../lib/mapPin';
+import { imageUrl } from '../../lib/images';
 
 const TARGET_BUCKETS = 8;
 
@@ -148,6 +149,7 @@ function QuestionCard({ item, index }: { item: HostQuestionSummaryItem; index: n
           <div className="max-w-md">
             <MapCanvas
               aspectRatio={reveal.aspectRatio}
+              imageUrl={config.mapImageId ? imageUrl(config.mapImageId) : null}
               target={reveal.target}
               fullRadius={reveal.fullRadius}
               dots={distributionDots(answerDistribution)}

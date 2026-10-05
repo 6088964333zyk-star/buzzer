@@ -19,7 +19,8 @@ Imported by `../pages/game/*`. These are hand-written mirrors of what
 - The question `type` is a closed string union in both `QuestionPayload` and
   `HostQuestionSummaryItem`, and `AnswerReveal` has one variant per type. A new question type
   (T7) must be added in all three places.
-- `config` is typed as only `{ options?; maxLength? }` — new per-type config fields go here.
+- `config` is the shared `QuestionConfig` (`options`, `maxLength`, T7's `aspectRatio`/`unit`,
+  T8's `imageId`/`optionImages`/`mapImageId`) — new per-type config fields go there.
 - `AnswerStatusPayload` declares `displayName` and `answered`, but the server only sends
   `userId`, `answeredCount`, `totalPlayers`. Don't rely on the extra fields.
 - `startedAt` on `QuestionPayload` is present only in `sync_state` (reconnect), not `new_question`.

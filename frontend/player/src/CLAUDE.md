@@ -10,8 +10,10 @@ code, joins as a guest or with an account, and answers questions on their phone.
   `/game/:code/{lobby,question,feedback,results,gameover}`; everything else → `/join`. No route guard.
 - `index.css` — Tailwind directives, hardcoded dark background/text, tap-highlight disabled.
 - `pages/` — Join → Name (guest or login) → `game/` screens. See `pages/CLAUDE.md`.
-- `components/` — Touch-sized `ui/` primitives: `Button`, `Card`, `Input`, `TimerBar`. See `components/CLAUDE.md`.
-- `lib/` — `api.ts` (`get`/`post` only), `cn`, `isTokenExpired`. See `lib/CLAUDE.md`.
+- `components/` — Touch-sized `ui/` primitives (`Button`, `Card`, `Input`, `TimerBar`) and the `map_pin`
+  `MapCanvas`. See `components/CLAUDE.md`.
+- `lib/` — `api.ts` (`get`/`post` only), `images.ts` (public image URLs, T8), `mapPin.ts`, `numeric.ts`,
+  `cn`, `isTokenExpired`. See `lib/CLAUDE.md`.
 - `types/` — Hand-written Socket.io payload shapes (narrower than the host's). See `types/CLAUDE.md`.
 
 ## How it fits in
@@ -22,7 +24,7 @@ backend. REST is used only before the game (room ping, guest/login tokens). In t
 
 ## Gotchas
 - **The phone never shows the question prompt while answering** — only the answer controls. The
-  prompt is on the host screen. Plan T8 images accordingly (prompt images → host, option images → phone).
+  prompt is on the host screen. T8 follows this: prompt images → host only, option images → phone.
 - **Adding a question type (T7)** touches `types/game.ts` (four spots) and the Question, Results,
   and GameOver pages; the answer shape sent must match the backend's scoring code.
 - Guests can join any room — the course roster only restricts logged-in users.

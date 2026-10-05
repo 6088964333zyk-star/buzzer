@@ -1,8 +1,8 @@
 # frontend/player/src/components/
 
 ## Purpose
-Reusable presentational components for the player app — a small shadcn-style set under `ui/`,
-sized for phones. No feature-level components yet.
+Reusable components for the player app — a small shadcn-style set under `ui/`, sized for
+phones, plus the `map_pin` canvas.
 
 ## Contents
 - `ui/button.tsx` — `Button` (`default` | `outline` | `ghost` | `destructive`; `sm` | `md` | `lg`),
@@ -11,6 +11,11 @@ sized for phones. No feature-level components yet.
 - `ui/input.tsx` — Full-width `Input` with large touch padding and `text-base` (avoids iOS zoom).
 - `ui/TimerBar.tsx` — Countdown bar (green → yellow → red) with seconds label.
   Props: `totalSeconds`, `paused`.
+- `MapCanvas.tsx` — the `map_pin` (T7) `<canvas>`: draws the map, pins, the target's radius
+  circles and answer dots; taps → image fractions `{x, y}`. Sized from `aspectRatio` (never the
+  image's natural size), height capped at 70% of the window. `imageUrl` swaps the built-in
+  `world-map.svg` for an uploaded image (T8); images are cached per URL for the whole page.
+  **Identical copies in host, player and admin.**
 
 ## How it fits in
 Used by `../pages/` (Join, Name, Login) and `../pages/game/`. Class merging via `../lib/utils.ts`.

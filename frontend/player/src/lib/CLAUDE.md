@@ -6,6 +6,9 @@ Small shared helpers: the REST client, the Tailwind class-merge utility, and a J
 ## Contents
 - `api.ts` — `api.get` / `api.post` wrapping `fetch('/api' + path)`. Adds `Authorization: Bearer`
   from `localStorage.token`, throws `Error(detail)` on non-2xx, returns `{}` for empty bodies.
+- `images.ts` — `imageUrl(id, version?)` → `/api/images/{id}` (public, no auth; T8). Editors pass
+  the image's `sha256` as `version` (`?v=`) so a replaced image reloads; game screens don't.
+  Also the `GameImage` list type. Identical in all three apps.
 - `numeric.ts` — `numeric` question helpers (T7, `docs/design-t7-numeric.md`): `parseNumber`
   (plain or `e` notation, no commas), `formatNumber`/`withUnit` (display only — they round),
   `effectiveTolerances`, `isFullCredit` (same rule and epsilon as the server) and
