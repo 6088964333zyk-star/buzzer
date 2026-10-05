@@ -135,3 +135,11 @@ class HostSessionItem(BaseModel):
     completed_at: datetime | None
     # Distinct players with at least one answer — same rule as the CSV rows.
     player_count: int
+
+
+class HostMergeGuest(BaseModel):
+    """Body of POST /api/game/sessions/{id}/merge-guest (was an untyped dict)."""
+
+    model_config = ConfigDict(extra="forbid")
+    guest_user_id: str = Field(..., min_length=1)
+    target_netid: str = Field(..., min_length=1, max_length=50)
