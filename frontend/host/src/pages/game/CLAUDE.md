@@ -52,4 +52,5 @@ Entered from `../HomePage.tsx` after `POST /api/game/rooms`.
 - Join URL is built as `${origin}/player/join?code=…`, which only resolves behind nginx
   (`localhost:8080`), not under the Vite dev server ports.
 - Auto-advance state lives only in `GameLayout` memory; a page reload turns it off.
-- Colors are hardcoded Tailwind palette classes (`slate-*`, `indigo-*`, `green-*`, …) — T9 target.
+- Colors are T9 tokens only (see `../../CLAUDE.md`); both QR codes use `qr-bg`/`qr-fg`. Keep game-screen
+  text at `text-lg` or larger (the join panel's "Room Code" caption is the one exception).

@@ -68,4 +68,4 @@ All calls go through `../lib/api.ts` to `/api/admin/*`, which the backend guards
 - The multipart `POST /admin/courses/{id}/roster` endpoint isn't used by the UI — only the JSON
   `/roster/import` path is.
 - Pages use `window.confirm()` before deletes, revokes, and course assignment.
-- Colors are hardcoded palette classes throughout — T9 target.
+- Colors are T9 tokens only (see `../CLAUDE.md`).

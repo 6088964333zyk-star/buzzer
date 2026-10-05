@@ -13,6 +13,7 @@ Small shared helpers: the REST client, the Tailwind class-merge utility, and a J
   (plain or `e` notation, no commas), `formatNumber`/`withUnit` (display only — they round),
   `effectiveTolerances`, `isFullCredit` (same rule and epsilon as the server) and
   `describeOffBy`. Mirrors `backend/app/services/numeric.py`.
+- `theme.ts` — T9 light/dark state: `getTheme`, `setTheme` (saves `localStorage['buzzer-theme']`, shared by all three apps), `onThemeChange(cb)` (returns an unsubscribe), and `cssColor(token, alpha)` for canvas/QR code. Follows the OS preference until the user picks. The inline script in `index.html` applies the theme before React renders. Identical in all three apps.
 - `utils.ts` — `cn(...)` (`clsx` + `tailwind-merge`) and `isTokenExpired(token)`, which decodes
   the JWT payload in the browser and compares `exp` to now (no signature check).
 

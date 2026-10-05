@@ -8,7 +8,7 @@ code, joins as a guest or with an account, and answers questions on their phone.
 - `main.tsx` — Mounts `<App />` in `StrictMode`.
 - `App.tsx` — Routes: `/join`, `/login` (OAuth2 landing), `/name/:code`, and
   `/game/:code/{lobby,question,feedback,results,gameover}`; everything else → `/join`. No route guard.
-- `index.css` — Tailwind directives, hardcoded dark background/text, tap-highlight disabled.
+- `index.css` — imports `theme.css` (the T9 color tokens), Tailwind directives, token-based body colors, the global `:focus-visible` outline, tap-highlight disabled.
 - `pages/` — Join → Name (guest or login) → `game/` screens. See `pages/CLAUDE.md`.
 - `components/` — Touch-sized `ui/` primitives (`Button`, `Card`, `Input`, `TimerBar`) and the `map_pin`
   `MapCanvas`. See `components/CLAUDE.md`.
@@ -31,5 +31,12 @@ backend. REST is used only before the game (room ping, guest/login tokens). In t
 - Reconnecting mid-game waits for the server's next push rather than navigating immediately.
 - Known display bugs: multi-select "your answer" is blank on `ResultsPage`, and partial credit
   shows as "correct".
-- **Theming (T9):** hardcoded dark palette in `index.css` and throughout; the answer buttons use a
-  fixed 8-color palette (`OPTION_COLORS`) that needs to work in both themes and stay thumb-friendly.
+- **Theming (T9, `docs/design-t9-theming.md`):** colors come only from the tokens in
+  `theme.css` (light in `:root`, dark in `:root.dark`), mapped by `../tailwind.tokens.ts`, which
+  *replaces* Tailwind's palette: a raw class like `bg-slate-800` generates no CSS at all. Use
+  roles (`bg-surface`, `text-fg-muted`, `bg-accent text-on-accent`, `text-danger-fg`, …).
+  `theme.css`, `../tailwind.tokens.ts` and `lib/theme.ts` are byte-identical in all three apps.
+  Run `scripts/check_theme_tokens.sh` and `node scripts/check_contrast.mjs` before an MR (they
+  are not in CI: the grader requires `.gitlab-ci.yml` unmodified).
+  The answer buttons use `option-1..8` / `on-option-N` (same in both themes). The `ThemeToggle`
+  is fixed top-right (mounted in `App.tsx`), so page roots reserve `pt-16`.

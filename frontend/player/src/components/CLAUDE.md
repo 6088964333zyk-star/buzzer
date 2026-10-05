@@ -8,6 +8,7 @@ phones, plus the `map_pin` canvas.
 - `ui/button.tsx` — `Button` (`default` | `outline` | `ghost` | `destructive`; `sm` | `md` | `lg`),
   with larger padding and `active:scale-95` press feedback for touch.
 - `ui/card.tsx` — `Card`, `CardHeader`, `CardContent`.
+- `ThemeToggle.tsx` — light/dark toggle (T9), fixed top-right; mounted once in `App.tsx`.
 - `ui/input.tsx` — Full-width `Input` with large touch padding and `text-base` (avoids iOS zoom).
 - `ui/TimerBar.tsx` — Countdown bar (green → yellow → red) with seconds label.
   Props: `totalSeconds`, `paused`.
@@ -28,4 +29,5 @@ Used by `../pages/` (Join, Name, Login) and `../pages/game/`. Class merging via 
   it. It's visual only — the server decides when answers lock.
 - The answer buttons in `../pages/game/QuestionPage.tsx` are hand-built `<button>`s, not `Button`,
   so restyling `Button` doesn't change them.
-- Hardcoded palette classes throughout — T9 target.
+- Colors are T9 tokens only (see `../CLAUDE.md`); `MapCanvas` reads them with `cssColor()` and
+  redraws on theme change.
